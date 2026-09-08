@@ -1,0 +1,22 @@
+{
+  "name": "g50golf",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "db:generate": "pnpm --filter @g50golf/db generate",
+    "db:migrate": "pnpm --filter @g50golf/db migrate",
+    "db:studio": "pnpm --filter @g50golf/db studio",
+    "db:seed": "pnpm --filter @g50golf/db seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0"
+  },
+  "packageManager": "pnpm@9.1.2",
+  "engines": {
+    "node": ">=20"
+  }
+}

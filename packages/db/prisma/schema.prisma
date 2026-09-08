@@ -1,0 +1,442 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum GlobalRole {
+  HQ_ADMIN
+  LOCATION_ADMIN
+  COACH
+  CUSTOMER
+}
+
+enum LocationRole {
+  LOCATION_ADMIN
+  COACH
+  CUSTOMER
+}
+
+enum ServiceType {
+  CLASS
+  APPOINTMENT
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  WAITLISTED
+  COMPLETED
+  NO_SHOW
+}
+
+enum AttendanceStatus {
+  ATTENDED
+  ABSENT
+  LATE_CANCEL
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentPurpose {
+  BOOKING
+  MEMBERSHIP
+  PACKAGE
+}
+
+enum MembershipType {
+  FREE_PAYG
+  LOCATION
+  GLOBAL
+  JUNIOR
+  CORPORATE
+}
+
+enum BillingPeriod {
+  NONE
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum WaitlistStatus {
+  WAITING
+  NOTIFIED
+  CLAIMED
+  EXPIRED
+}
+
+// ---------- Core identity ----------
+
+model Location {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  address       String?
+  phone         String?
+  email         String?
+  description   String?
+  logoUrl       String?
+  openingHours  Json?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  staff          UserLocation[]
+  services       Service[]
+  membershipPlans MembershipPlan[]
+  creditPackages  CreditPackage[]
+  bookings        Booking[]
+  sessions        Session[]
+  coachAvailability CoachAvailability[]
+
+  @@map("locations")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
+  globalRole    GlobalRole @default(CUSTOMER)
+  homeLocationId String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  locations       UserLocation[]
+  coachServices   ServiceCoach[]
+  coachSessions   Session[]        @relation("SessionCoach")
+  coachAvailability CoachAvailability[]
+  bookings        Booking[]
+  waitlistEntries WaitlistEntry[]
+  memberships     UserMembership[]
+  creditBalances  CreditBalance[]
+  payments        Payment[]
+  attendanceRecordedBy Attendance[] @relation("AttendanceRecordedBy")
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+// A user's role/access can differ per location (e.g. coach at Twin Waters, customer elsewhere)
+model UserLocation {
+  id         String       @id @default(cuid())
+  userId     String
+  locationId String
+  role       LocationRole
+  createdAt  DateTime     @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, locationId, role])
+  @@map("user_locations")
+}
+
+// ---------- Services (HQ templates + location instances) ----------
+
+model ServiceTemplate {
+  id                  String      @id @default(cuid())
+  name                String
+  description         String?
+  category            String?
+  type                ServiceType
+  defaultDurationMinutes Int
+  defaultCapacity     Int?
+  defaultPrice        Decimal     @db.Decimal(10, 2)
+  defaultMemberPrice  Decimal?    @db.Decimal(10, 2)
+  imageUrl            String?
+  isActive            Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  services Service[]
+
+  @@map("service_templates")
+}
+
+// A service as activated/configured at a specific location (may come from a template or be location-only)
+model Service {
+  id                  String      @id @default(cuid())
+  templateId          String?
+  locationId          String
+  name                String
+  description         String?
+  category            String?
+  type                ServiceType
+  durationMinutes     Int
+  capacity            Int?
+  price               Decimal     @db.Decimal(10, 2)
+  memberPrice         Decimal?    @db.Decimal(10, 2)
+  bufferBeforeMinutes Int         @default(0)
+  bufferAfterMinutes  Int         @default(0)
+  bookingIntervalMinutes Int?
+  isActive            Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  location Location @relation(fields: [locationId], references: [id])
+  serviceTemplate ServiceTemplate? @relation(fields: [templateId], references: [id])
+  coaches  ServiceCoach[]
+  sessions Session[]
+
+  @@map("services")
+}
+
+model ServiceCoach {
+  id        String @id @default(cuid())
+  serviceId String
+  userId    String
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  coach   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, userId])
+  @@map("service_coaches")
+}
+
+// ---------- Scheduling ----------
+
+// A single bookable occurrence of a service (recurring classes generate many Sessions; appointments are booked per-slot)
+model Session {
+  id             String   @id @default(cuid())
+  serviceId      String
+  locationId     String
+  coachId        String?
+  startTime      DateTime
+  endTime        DateTime
+  capacity       Int?
+  recurrenceRule String?
+  isCancelled    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  service      Service        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  location     Location       @relation(fields: [locationId], references: [id])
+  coach        User?          @relation("SessionCoach", fields: [coachId], references: [id])
+  bookings     Booking[]
+  waitlist     WaitlistEntry[]
+
+  @@index([coachId, startTime, endTime])
+  @@index([locationId, startTime])
+  @@map("sessions")
+}
+
+model CoachAvailability {
+  id         String   @id @default(cuid())
+  userId     String
+  locationId String
+  dayOfWeek  Int?
+  date       DateTime?
+  startTime  String
+  endTime    String
+  isTimeOff  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  coach    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("coach_availability")
+}
+
+// ---------- Memberships, packages, credits ----------
+
+model MembershipPlan {
+  id                  String        @id @default(cuid())
+  locationId          String?
+  name                String
+  type                MembershipType
+  price               Decimal       @db.Decimal(10, 2)
+  billingPeriod       BillingPeriod @default(NONE)
+  crossLocationAccess Boolean       @default(false)
+  bookingWindowDays   Int?
+  includedCredits     Int?
+  isActive            Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  location        Location?        @relation(fields: [locationId], references: [id])
+  userMemberships UserMembership[]
+
+  @@map("membership_plans")
+}
+
+model UserMembership {
+  id        String           @id @default(cuid())
+  userId    String
+  planId    String
+  startDate DateTime
+  endDate   DateTime?
+  autoRenew Boolean          @default(false)
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan     MembershipPlan @relation(fields: [planId], references: [id])
+  bookings Booking[]
+
+  @@map("user_memberships")
+}
+
+model CreditPackage {
+  id                 String       @id @default(cuid())
+  locationId         String?
+  name               String
+  creditsIncluded    Int
+  price              Decimal      @db.Decimal(10, 2)
+  eligibleServiceType ServiceType?
+  expiryDays         Int?
+  isActive           Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+
+  location       Location?        @relation(fields: [locationId], references: [id])
+  creditBalances CreditBalance[]
+
+  @@map("credit_packages")
+}
+
+model CreditBalance {
+  id               String   @id @default(cuid())
+  userId           String
+  packageId        String?
+  creditsRemaining Int
+  expiresAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  package      CreditPackage?     @relation(fields: [packageId], references: [id])
+  transactions CreditTransaction[]
+
+  @@map("credit_balances")
+}
+
+model CreditTransaction {
+  id              String   @id @default(cuid())
+  creditBalanceId String
+  bookingId       String?
+  amount          Int
+  reason          String
+  createdAt       DateTime @default(now())
+
+  creditBalance CreditBalance @relation(fields: [creditBalanceId], references: [id], onDelete: Cascade)
+  booking       Booking?      @relation(fields: [bookingId], references: [id])
+
+  @@map("credit_transactions")
+}
+
+// ---------- Bookings, waitlist, attendance ----------
+
+model Booking {
+  id                String        @id @default(cuid())
+  sessionId         String
+  userId            String
+  locationId        String
+  userMembershipId  String?
+  status            BookingStatus @default(CONFIRMED)
+  priceCharged      Decimal?      @db.Decimal(10, 2)
+  createdAt         DateTime      @default(now())
+  cancelledAt       DateTime?
+  cancellationReason String?
+
+  session         Session          @relation(fields: [sessionId], references: [id])
+  user            User             @relation(fields: [userId], references: [id])
+  location        Location         @relation(fields: [locationId], references: [id])
+  userMembership  UserMembership?  @relation(fields: [userMembershipId], references: [id])
+  creditTransactions CreditTransaction[]
+  payments        Payment[]
+  attendance      Attendance?
+
+  @@index([sessionId])
+  @@index([userId])
+  @@map("bookings")
+}
+
+model WaitlistEntry {
+  id         String         @id @default(cuid())
+  sessionId  String
+  userId     String
+  position   Int
+  status     WaitlistStatus @default(WAITING)
+  notifiedAt DateTime?
+  createdAt  DateTime       @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, position])
+  @@map("waitlist_entries")
+}
+
+model Attendance {
+  id            String           @id @default(cuid())
+  bookingId     String           @unique
+  status        AttendanceStatus
+  recordedById  String?
+  recordedAt    DateTime         @default(now())
+
+  booking    Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  recordedBy User?   @relation("AttendanceRecordedBy", fields: [recordedById], references: [id])
+
+  @@map("attendance")
+}
+
+// ---------- Payments ----------
+
+model Payment {
+  id          String         @id @default(cuid())
+  userId      String
+  bookingId   String?
+  amount      Decimal        @db.Decimal(10, 2)
+  currency    String         @default("AUD")
+  status      PaymentStatus  @default(PENDING)
+  purpose     PaymentPurpose
+  provider    String
+  providerRef String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+}
+
+// ---------- Audit ----------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}

@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: g50golf-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: g50golf
+      POSTGRES_PASSWORD: g50golf
+      POSTGRES_DB: g50golf
+    ports:
+      - "5432:5432"
+    volumes:
+      - g50golf_pg_data:/var/lib/postgresql/data
+
+volumes:
+  g50golf_pg_data:

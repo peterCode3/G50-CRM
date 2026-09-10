@@ -1,7 +1,8 @@
-import { Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import { BookingsService } from './bookings.service.js';
+import { CreateBookingDto } from './dto/create-booking.dto.js';
 
 @Controller('sessions/:sessionId/bookings')
 export class SessionBookingsController {
@@ -9,7 +10,11 @@ export class SessionBookingsController {
 
   // No @Roles() — any authenticated user can book a session for themselves.
   @Post()
-  create(@Param('sessionId') sessionId: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.bookingsService.create(sessionId, user);
+  create(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: CreateBookingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.create(sessionId, dto, user);
   }
 }

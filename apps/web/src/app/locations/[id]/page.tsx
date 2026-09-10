@@ -4,7 +4,14 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch, ApiError, type AuthenticatedUser } from "@/lib/api";
-import type { Location, Service, SessionWithAvailability } from "@/lib/types";
+import type {
+  BookingPaymentMethod,
+  CreditBalance,
+  Location,
+  Service,
+  SessionWithAvailability,
+  UserMembership,
+} from "@/lib/types";
 
 export default function LocationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,12 +23,26 @@ export default function LocationDetailPage() {
     Record<string, SessionWithAvailability[]>
   >({});
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [myMemberships, setMyMemberships] = useState<UserMembership[]>([]);
+  const [myBalances, setMyBalances] = useState<CreditBalance[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     load().catch(() => setError("Couldn't load this location — please refresh."));
     apiFetch<AuthenticatedUser>("/auth/me")
-      .then(() => setIsLoggedIn(true))
+      .then(() => {
+        setIsLoggedIn(true);
+        return Promise.all([
+          apiFetch<UserMembership[]>("/memberships/my"),
+          apiFetch<CreditBalance[]>("/credit-balances/my"),
+        ]);
+      })
+      .then((result) => {
+        if (result) {
+          setMyMemberships(result[0]);
+          setMyBalances(result[1]);
+        }
+      })
       .catch(() => setIsLoggedIn(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -92,6 +113,8 @@ export default function LocationDetailPage() {
               service={svc}
               sessions={sessionsByService[svc.id] ?? []}
               isLoggedIn={isLoggedIn}
+              myMemberships={myMemberships}
+              myBalances={myBalances}
               onNeedLogin={() => router.push("/login")}
               onChanged={() => refreshSessionsFor(svc.id)}
             />
@@ -106,15 +129,36 @@ function ServiceCard({
   service,
   sessions,
   isLoggedIn,
+  myMemberships,
+  myBalances,
   onNeedLogin,
   onChanged,
 }: {
   service: Service;
   sessions: SessionWithAvailability[];
   isLoggedIn: boolean;
+  myMemberships: UserMembership[];
+  myBalances: CreditBalance[];
   onNeedLogin: () => void;
   onChanged: () => void;
 }) {
+  const now = new Date();
+
+  const hasEligibleMembership = myMemberships.some((m) => {
+    if (m.status !== "ACTIVE") return false;
+    if (m.endDate && new Date(m.endDate) <= now) return false;
+    const plan = m.plan;
+    return plan.crossLocationAccess || !plan.locationId || plan.locationId === service.locationId;
+  });
+
+  const hasEligibleCredit = myBalances.some((b) => {
+    if (b.creditsRemaining <= 0) return false;
+    if (b.expiresAt && new Date(b.expiresAt) <= now) return false;
+    return (
+      !b.package || !b.package.eligibleServiceType || b.package.eligibleServiceType === service.type
+    );
+  });
+
   return (
     <div className="rounded-xl border border-teal-100 bg-white p-6 shadow-sm">
       <div className="flex items-start justify-between">
@@ -142,6 +186,9 @@ function ServiceCard({
             key={s.id}
             session={s}
             isLoggedIn={isLoggedIn}
+            hasEligibleMembership={hasEligibleMembership}
+            hasEligibleCredit={hasEligibleCredit}
+            memberPrice={service.memberPrice}
             onNeedLogin={onNeedLogin}
             onChanged={onChanged}
           />
@@ -154,17 +201,24 @@ function ServiceCard({
 function SessionRow({
   session,
   isLoggedIn,
+  hasEligibleMembership,
+  hasEligibleCredit,
+  memberPrice,
   onNeedLogin,
   onChanged,
 }: {
   session: SessionWithAvailability;
   isLoggedIn: boolean;
+  hasEligibleMembership: boolean;
+  hasEligibleCredit: boolean;
+  memberPrice: string | null;
   onNeedLogin: () => void;
   onChanged: () => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [isFull, setIsFull] = useState(session.spotsLeft != null && session.spotsLeft <= 0);
+  const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>("FULL_PRICE");
 
   const start = new Date(session.startTime);
   const dateLabel = start.toLocaleDateString(undefined, {
@@ -173,6 +227,7 @@ function SessionRow({
     day: "numeric",
   });
   const timeLabel = start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const showPaymentSelector = hasEligibleMembership || hasEligibleCredit;
 
   async function onBook() {
     if (!isLoggedIn) {
@@ -182,19 +237,29 @@ function SessionRow({
     setSubmitting(true);
     setMessage(null);
     try {
-      await apiFetch(`/sessions/${session.id}/bookings`, { method: "POST" });
+      await apiFetch(`/sessions/${session.id}/bookings`, {
+        method: "POST",
+        body: JSON.stringify({ paymentMethod }),
+      });
       setMessage({ text: "Booked! See it in My Bookings.", isError: false });
       onChanged();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
+      // A 409 covers two distinct cases from the API: "session is full" (offer
+      // the waitlist) and "you already have a booking here" (a duplicate —
+      // nothing to offer, the golfer is already in). Only the former should
+      // flip the UI to "Join Waitlist"; conflating them misleads a golfer who
+      // simply double-clicked into thinking a session that has room is full.
+      const isCapacityConflict =
+        err instanceof ApiError &&
+        err.status === 409 &&
+        /full|filled up/i.test(err.message);
+      if (isCapacityConflict) {
         setIsFull(true);
-        setMessage({ text: err.message, isError: true });
-      } else {
-        setMessage({
-          text: err instanceof ApiError ? err.message : "Something went wrong",
-          isError: true,
-        });
       }
+      setMessage({
+        text: err instanceof ApiError ? err.message : "Something went wrong",
+        isError: true,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -248,13 +313,30 @@ function SessionRow({
             {submitting ? "..." : "Join Waitlist"}
           </button>
         ) : (
-          <button
-            onClick={onBook}
-            disabled={submitting}
-            className="rounded-md bg-gold-500 px-3 py-1.5 text-xs font-medium text-teal-900 transition hover:bg-gold-700 disabled:opacity-60"
-          >
-            {submitting ? "..." : "Book"}
-          </button>
+          <>
+            {showPaymentSelector && isLoggedIn && (
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as BookingPaymentMethod)}
+                className="rounded-md border border-teal-300 px-2 py-1.5 text-xs text-teal-900"
+              >
+                <option value="FULL_PRICE">Pay full price</option>
+                {hasEligibleMembership && (
+                  <option value="MEMBERSHIP">
+                    Use membership{memberPrice ? ` ($${memberPrice})` : ""}
+                  </option>
+                )}
+                {hasEligibleCredit && <option value="CREDIT">Use 1 credit</option>}
+              </select>
+            )}
+            <button
+              onClick={onBook}
+              disabled={submitting}
+              className="rounded-md bg-gold-500 px-3 py-1.5 text-xs font-medium text-teal-900 transition hover:bg-gold-700 disabled:opacity-60"
+            >
+              {submitting ? "..." : "Book"}
+            </button>
+          </>
         )}
       </div>
     </div>

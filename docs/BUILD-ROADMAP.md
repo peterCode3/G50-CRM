@@ -238,6 +238,62 @@ actually got built, since implementations may diverge slightly from the prompt).
   Verified visually, including a real layout bug the first version had: the Templates modal's
   3-column pricing row clipped against the modal's right edge at the original `max-w-lg` — widened
   to `max-w-xl` and re-verified with a screenshot.
+- **Phase 5 — Memberships, Packages & Credits** — verified with real payment-method branching,
+  not just CRUD:
+  - **API**: `MembershipsModule` (`MembershipPlansController` — public browse/detail, HQ-only
+    write, `POST /membership-plans/:id/subscribe` for any authenticated golfer;
+    `MyMembershipsController` — `GET /memberships/my`) and `CreditsModule`
+    (`CreditPackagesController` — same public/HQ-only split, `POST /credit-packages/:id/purchase`;
+    `MyCreditBalancesController` — `GET /credit-balances/my`). Subscribing computes `endDate` from
+    `BillingPeriod` (`WEEKLY`/`MONTHLY`/`QUARTERLY`/`ANNUAL`/`NONE`→indefinite) and, if the plan
+    has `includedCredits`, also grants a matching `CreditBalance` — the schema already modeled
+    this combination (spec §7 "included sessions or credits"), so wiring it up was a small
+    addition once the base subscribe flow existed.
+  - **The core integration**: `BookingsService.create` now takes a `paymentMethod`
+    (`FULL_PRICE`/`MEMBERSHIP`/`CREDIT`, default `FULL_PRICE`) and resolves it *inside* the same
+    `SERIALIZABLE` transaction as the capacity check — an active membership or an eligible credit
+    balance is exactly as racy a resource as the seat itself, so it's checked and consumed
+    atomically with everything else, not as a separate step that could desync under concurrency.
+    `MEMBERSHIP` applies `Service.memberPrice` (falls back to `Service.price` if unset) and
+    respects `MembershipPlan.crossLocationAccess`/`locationId` (a location-scoped, non-cross plan
+    is rejected at a different location — verified: a global cross-location plan worked at Twin
+    Waters, a location-scoped one would not have). `CREDIT` calls a new
+    `CreditsService.findEligibleBalance` (soonest-expiring first, filtered by
+    `CreditPackage.eligibleServiceType` when set) and `redeemOne` (decrements + records a
+    `CreditTransaction`), both taking the transaction's `tx` client so they participate in the
+    same atomic operation. `BookingsService.cancel` mirrors this: it looks up the original debit
+    `CreditTransaction` by `bookingId` and calls `refundOne` to reverse it, alongside the existing
+    waitlist-notify logic, all in one transaction.
+  - **Verified with curl, not just asserted**: subscribe → `endDate` correctly +30 days for
+    `MONTHLY`; duplicate subscribe → 409; purchase → `CreditBalance` created with the right
+    `expiresAt`; booking with `CREDIT` → `priceCharged: "0"`, balance 5→4; booking with
+    `MEMBERSHIP` → `priceCharged` equals `memberPrice`, `userMembershipId` linked; cancelling the
+    credit-paid booking → balance back to 5; a golfer with neither → 400 on both `CREDIT` and
+    `MEMBERSHIP` attempts with distinct messages; `eligibleServiceType` filtering confirmed by
+    creating an `APPOINTMENT` service and confirming a `CLASS`-only credit balance is correctly
+    rejected there — **and that the rejected attempt didn't consume a credit**, proving the
+    transaction actually rolled back the whole branch, not just the final insert.
+  - **A UI bug caught only by actually clicking through the browser, not curl**: the booking
+    page's error handler treated *any* 409 as "session is full" and flipped the button to "Join
+    Waitlist" — including the unrelated "you already have a booking for this session" duplicate
+    conflict, which meant a golfer who'd already booked a session with plenty of room got a
+    misleading "full" prompt. Fixed by checking the error message for "full"/"filled up" before
+    treating it as a capacity conflict. This is a fragile mechanism (string-matching a message)
+    worth revisiting with structured error codes later, but the API's messages are
+    developer-controlled text, not user input, so it's safe for now.
+  - **Frontend**: `apps/web` gets `/membership` (browse plans + packages, subscribe/purchase,
+    shows the golfer's current credit balances and active-membership state) and a payment-method
+    `<select>` on each bookable session in `/locations/[id]` that only appears — and only offers
+    the options — the golfer actually qualifies for right now (computed client-side from
+    `/memberships/my` + `/credit-balances/my`, enforced authoritatively server-side regardless).
+    `/bookings` now shows how each booking was paid for ("Paid via membership" / "Paid with 1
+    credit" / the dollar amount).
+  - **Known simplification, revisit later**: no late-cancellation-forfeit window — every
+    cancellation that reaches `BookingsService.cancel` (which already requires the session hasn't
+    started) refunds the credit in full, since no field models a configurable forfeit window yet.
+    Waitlist claims (`WaitlistService.claim`) still always charge full price — extending
+    membership/credit payment to the claim flow would be a small follow-up if it matters in
+    practice.
 
 ---
 
@@ -245,26 +301,6 @@ actually got built, since implementations may diverge slightly from the prompt).
 
 Each phase below is meant to be handed to Claude as its own prompt, one at a time, so the work
 stays reviewable in chunks instead of one giant change.
-
-### Phase 5 — Memberships, Packages & Credits
-
-**Flow:** golfer buys a membership or a credit package → credits/access recorded → booking
-consumes a credit or checks membership access → eligible cancellation returns the credit, a
-late cancellation/no-show may forfeit it (spec §7, §8).
-
-**Prompt:**
-> Build the Memberships & Credits module in `apps/api`: CRUD for `MembershipPlan`
-> (HQ/location-scoped, configurable price/billing period/cross-location access), a subscribe
-> endpoint that creates a `UserMembership`, CRUD for `CreditPackage`, and a purchase endpoint
-> that creates a `CreditBalance` + `CreditTransaction`. Wire credit/membership pricing into
-> `BookingsService.create` (`apps/api/src/bookings/bookings.service.ts`) — it currently always
-> charges `Service.price` and takes no `userMembershipId`; extend it to check for an active
-> membership (apply `memberPrice`) or consume a credit (link `Booking.userMembershipId`, create a
-> `CreditTransaction`) inside the same transaction that checks capacity, and wire credit
-> return/forfeiture into `BookingsService.cancel`. Add membership/package browsing + purchase
-> screens in `apps/web`.
-
----
 
 ### Phase 6 — Payments
 
@@ -274,8 +310,11 @@ data directly (spec §14).
 **Prompt:**
 > Integrate Stripe in `apps/api`: Payment Intents for PAYG bookings, membership subscriptions,
 > and package purchases; a webhook endpoint updating `Payment.status` on success/failure; a
-> refund endpoint for authorised admins. Store only `provider` + `providerRef`, never raw card
-> data. Add Stripe Elements to the booking/purchase confirmation steps in `apps/web`.
+> refund endpoint for authorised admins. Only `Booking.priceCharged` > 0 needs an actual charge —
+> a `CREDIT`-paid booking (`priceCharged: 0`) already settled the transaction in Phase 5's credit
+> ledger and needs no Stripe involvement; a `MEMBERSHIP`-paid booking still charges
+> `memberPrice`. Store only `provider` + `providerRef`, never raw card data. Add Stripe Elements
+> to the booking/purchase confirmation steps in `apps/web`.
 
 ---
 

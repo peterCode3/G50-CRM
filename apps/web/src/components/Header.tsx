@@ -16,6 +16,9 @@ export function Header() {
           />
         </Link>
         <nav className="flex items-center gap-5 text-sm font-medium text-teal-700">
+          <Link href="/membership" className="hover:text-teal-900">
+            Membership
+          </Link>
           <Link href="/bookings" className="hover:text-teal-900">
             My Bookings
           </Link>

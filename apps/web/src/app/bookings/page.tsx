@@ -16,6 +16,12 @@ function formatSessionTime(iso: string) {
   });
 }
 
+function paymentLabel(b: Booking): string {
+  if (b.userMembershipId) return "Paid via membership";
+  if (b.priceCharged === "0") return "Paid with 1 credit";
+  return b.priceCharged ? `$${b.priceCharged}` : "";
+}
+
 export default function BookingsPage() {
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[] | null>(null);
@@ -149,6 +155,7 @@ export default function BookingsPage() {
                     <p className="text-teal-700">
                       {formatSessionTime(b.session.startTime)} · {b.session.location.name}
                     </p>
+                    <p className="mt-0.5 text-xs text-teal-700/70">{paymentLabel(b)}</p>
                   </div>
                   <button
                     onClick={() => onCancel(b.id)}

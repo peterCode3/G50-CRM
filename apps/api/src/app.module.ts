@@ -14,6 +14,8 @@ import { StaffModule } from './staff/staff.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
 import { WaitlistModule } from './waitlist/waitlist.module.js';
+import { MembershipsModule } from './memberships/memberships.module.js';
+import { CreditsModule } from './credits/credits.module.js';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { WaitlistModule } from './waitlist/waitlist.module.js';
     SchedulingModule,
     BookingsModule,
     WaitlistModule,
+    MembershipsModule,
+    CreditsModule,
   ],
   controllers: [AppController],
   providers: [

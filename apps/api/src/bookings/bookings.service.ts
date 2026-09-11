@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { GlobalRole, LocationRole, Prisma } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreditsService } from '../credits/credits.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { CancelBookingDto } from './dto/cancel-booking.dto.js';
 import type { CreateBookingDto } from './dto/create-booking.dto.js';
@@ -11,6 +12,7 @@ export class BookingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly creditsService: CreditsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -50,8 +52,9 @@ export class BookingsService {
 
     const paymentMethod = dto.paymentMethod ?? 'FULL_PRICE';
 
+    let booking;
     try {
-      return await this.prisma.client.$transaction(
+      booking = await this.prisma.client.$transaction(
         async (tx) => {
           if (session.capacity != null) {
             const confirmedCount = await tx.booking.count({
@@ -132,6 +135,9 @@ export class BookingsService {
       }
       throw err;
     }
+
+    void this.notifications.bookingConfirmed(user, session.service.name, session.startTime);
+    return booking;
   }
 
   findMine(user: AuthenticatedUser) {
@@ -180,9 +186,12 @@ export class BookingsService {
     return this.releaseBooking(id, 'Payment failed');
   }
 
-  private releaseBooking(id: string, reason?: string) {
-    return this.prisma.client.$transaction(async (tx) => {
-      const booking = await tx.booking.findUniqueOrThrow({ where: { id } });
+  private async releaseBooking(id: string, reason?: string) {
+    const { cancelled, booking, nextInLine } = await this.prisma.client.$transaction(async (tx) => {
+      const booking = await tx.booking.findUniqueOrThrow({
+        where: { id },
+        include: { user: true, session: { include: { service: true } } },
+      });
       const cancelled = await tx.booking.update({
         where: { id },
         data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: reason },
@@ -205,6 +214,7 @@ export class BookingsService {
       const nextInLine = await tx.waitlistEntry.findFirst({
         where: { sessionId: booking.sessionId, status: 'WAITING' },
         orderBy: { position: 'asc' },
+        include: { user: true },
       });
       if (nextInLine) {
         await tx.waitlistEntry.update({
@@ -213,8 +223,23 @@ export class BookingsService {
         });
       }
 
-      return cancelled;
+      return { cancelled, booking, nextInLine };
     });
+
+    void this.notifications.bookingCancelled(
+      booking.user,
+      booking.session.service.name,
+      booking.session.startTime,
+    );
+    if (nextInLine) {
+      void this.notifications.waitlistAvailable(
+        nextInLine.user,
+        booking.session.service.name,
+        booking.session.startTime,
+      );
+    }
+
+    return cancelled;
   }
 
   private assertCanManageBooking(

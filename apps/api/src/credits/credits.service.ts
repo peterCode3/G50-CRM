@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ServiceType } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { CreateCreditPackageDto } from './dto/create-credit-package.dto.js';
 import type { UpdateCreditPackageDto } from './dto/update-credit-package.dto.js';
@@ -9,7 +10,10 @@ type Tx = Prisma.TransactionClient;
 
 @Injectable()
 export class CreditsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   create(dto: CreateCreditPackageDto) {
     return this.prisma.client.creditPackage.create({ data: dto });
@@ -48,7 +52,7 @@ export class CreditsService {
       throw new BadRequestException('This credit package is no longer available');
     }
 
-    return this.prisma.client.creditBalance.create({
+    const balance = await this.prisma.client.creditBalance.create({
       data: {
         userId: user.id,
         packageId: pkg.id,
@@ -56,6 +60,9 @@ export class CreditsService {
         expiresAt: pkg.expiryDays ? new Date(Date.now() + pkg.expiryDays * 24 * 60 * 60_000) : null,
       },
     });
+
+    void this.notifications.packageConfirmed(user, pkg.name, pkg.creditsIncluded);
+    return balance;
   }
 
   findMyBalances(user: AuthenticatedUser) {

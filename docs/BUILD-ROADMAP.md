@@ -544,6 +544,45 @@ actually got built, since implementations may diverge slightly from the prompt).
     phase); partial refunds (only full-amount); Apple Pay/Google Pay wallets (Stripe's
     PaymentElement supports them automatically once real keys are in place, no extra code needed,
     just untested here).
+- **Phase 8 — Notifications** — transactional emails triggered from service methods (never
+  controllers), verified with curl by exercising every real trigger against live dev data and
+  reading the resulting log lines back (Resend isn't configured in this environment, so sends are
+  logged instead of dispatched — see below).
+  - **API** (`apps/api/src/notifications/`): `MailService` wraps the Resend SDK behind one
+    `send(to, subject, html)` method that never throws — a missing `RESEND_API_KEY` or a failed
+    send is caught/logged, never propagated, since an email failure must not break the booking/
+    payment/waitlist operation that triggered it. `NotificationsService` sits on top with one
+    named method per event (`bookingConfirmed`, `bookingCancelled`, `waitlistAvailable`,
+    `paymentConfirmed`, `membershipConfirmed`, `packageConfirmed`) plus `templates.ts` for the
+    actual subject/HTML. `RemindersService` runs `@Cron(EVERY_HOUR)`, scanning `CONFIRMED`
+    bookings whose session starts 23–25h out and `reminderSentAt IS NULL` — the 2-hour-wide
+    window against an hourly tick means a booking is never missed, and the new
+    `Booking.reminderSentAt` column (migration `add_booking_reminder_sent`) makes re-checks
+    idempotent instead of double-sending.
+  - **Triggers wired into the actual service methods** (matching the prompt's "not from
+    controllers" requirement): `BookingsService.create` → booking confirmed;
+    `BookingsService`'s shared `releaseBooking` (used by both a golfer's own cancellation and
+    Phase 6's failed-payment release) → cancellation email to the booking's owner, **and** a
+    waitlist-availability email to whoever just got `NOTIFIED`, both fetched via the same
+    transaction's return value rather than a second round-trip; `MembershipPlansService.subscribe`
+    → membership confirmed; `CreditsService.purchase` → package confirmed;
+    `PaymentsService.handleWebhookEvent`'s `payment_intent.succeeded` branch → payment confirmed.
+  - **Reschedule has no separate template**, matching the existing V1 simplification that
+    reschedule is cancel + rebook — that already produces a cancellation email and a fresh booking
+    confirmation, covering the same ground spec §15 asks for.
+  - **Verified with curl against live data, reading real log output back** (not just "the code
+    compiles"): a real booking → `[MailService] [mail:not-configured] to=golfer1@test.com
+    subject="Booking confirmed: G50 Driver Session"`; cancelling it → the matching cancellation
+    log line; a capacity-1 session with golfer2 on the waitlist, golfer1 cancelling → **both** a
+    cancellation email to golfer1 and a waitlist-availability email to golfer2, correctly
+    addressed to each; subscribing to a plan and purchasing a package → their respective
+    confirmation lines. The reminder window itself was verified by creating a session exactly
+    ~24h out, booking it, and running the exact same Prisma query the cron uses — confirmed it
+    matches precisely that booking and no others.
+  - **Not exercised for real**: actual delivery (needs a `RESEND_API_KEY`, not yet supplied — every
+    trigger above falls back to a structured log line instead, by design) and the `@Cron` tick
+    actually firing on the hour (standard `@nestjs/schedule` behavior, not re-tested beyond
+    confirming the module boots without error and the underlying query is correct).
 
 ---
 
@@ -551,19 +590,6 @@ actually got built, since implementations may diverge slightly from the prompt).
 
 Each phase below is meant to be handed to Claude as its own prompt, one at a time, so the work
 stays reviewable in chunks instead of one giant change.
-
-### Phase 8 — Notifications
-
-**Flow:** transactional emails for the booking/payment/waitlist lifecycle (spec §15).
-
-**Prompt:**
-> Add transactional email notifications in `apps/api` (via Resend or SendGrid) for: booking
-> confirmation, booking reminder, cancellation, reschedule, waitlist availability, payment
-> confirmation, and membership/package confirmation. Trigger these from the relevant service
-> methods (booking, payment, waitlist), not from controllers, so they fire consistently
-> regardless of caller.
-
----
 
 ### Phase 9 — Acceptance Testing
 

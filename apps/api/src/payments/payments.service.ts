@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { assertManagesLocation } from '../auth/location-access.util.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import { BookingsService } from '../bookings/bookings.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { StripeClientService } from './stripe-client.service.js';
 
 const CURRENCY = 'aud';
@@ -25,6 +26,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly stripe: StripeClientService,
     private readonly bookingsService: BookingsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async createIntentForBooking(bookingId: string, user: AuthenticatedUser) {
@@ -177,7 +179,13 @@ export class PaymentsService {
 
     if (event.type === 'payment_intent.succeeded') {
       const intent = event.data.object as Stripe.PaymentIntent;
-      await this.setStatus(intent.id, 'PAID');
+      const payment = await this.setStatus(intent.id, 'PAID');
+      if (payment) {
+        const user = await this.prisma.client.user.findUnique({ where: { id: payment.userId } });
+        if (user) {
+          void this.notifications.paymentConfirmed(user, payment.amount.toFixed(2));
+        }
+      }
     } else if (event.type === 'payment_intent.payment_failed') {
       const intent = event.data.object as Stripe.PaymentIntent;
       const payment = await this.setStatus(intent.id, 'FAILED');

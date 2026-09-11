@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { BillingPeriod } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { CreateMembershipPlanDto } from './dto/create-membership-plan.dto.js';
 import type { UpdateMembershipPlanDto } from './dto/update-membership-plan.dto.js';
@@ -15,7 +16,10 @@ const BILLING_PERIOD_MS: Record<BillingPeriod, number | null> = {
 
 @Injectable()
 export class MembershipPlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   create(dto: CreateMembershipPlanDto) {
     return this.prisma.client.membershipPlan.create({ data: dto });
@@ -79,6 +83,7 @@ export class MembershipPlansService {
       });
     }
 
+    void this.notifications.membershipConfirmed(user, plan.name);
     return membership;
   }
 

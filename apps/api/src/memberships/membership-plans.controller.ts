@@ -18,6 +18,13 @@ export class MembershipPlansController {
     return this.service.findActive(locationId);
   }
 
+  // Static path registered before ':id' so it isn't swallowed by the param route.
+  @Roles(GlobalRole.HQ_ADMIN)
+  @Get('admin/all')
+  findAll() {
+    return this.service.findAll();
+  }
+
   @Public()
   @Get(':id')
   findOne(@Param('id') id: string) {

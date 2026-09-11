@@ -31,6 +31,10 @@ export class MembershipPlansService {
     });
   }
 
+  findAll() {
+    return this.prisma.client.membershipPlan.findMany({ orderBy: { price: 'asc' } });
+  }
+
   async findOne(id: string) {
     const plan = await this.prisma.client.membershipPlan.findUnique({ where: { id } });
     if (!plan) {

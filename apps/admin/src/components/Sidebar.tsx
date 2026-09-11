@@ -19,6 +19,7 @@ const NAV_ITEMS: {
   { href: "/schedule", label: "My Schedule", icon: ScheduleIcon, coachOnly: true },
   { href: "/locations", label: "Locations", icon: LocationIcon, locationAdminOnly: true },
   { href: "/templates", label: "Service Templates", icon: TemplateIcon, hqOnly: true },
+  { href: "/memberships", label: "Memberships", icon: MembershipIcon, hqOnly: true },
 ];
 
 const SOON_ITEMS = [
@@ -160,6 +161,16 @@ function TemplateIcon({ className }: IconProps) {
     <svg viewBox="0 0 20 20" fill="none" className={className}>
       <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
       <path d="M3 8h14" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function MembershipIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <rect x="2.5" y="5" width="15" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2.5 8.5h15" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M5.5 11.5h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }

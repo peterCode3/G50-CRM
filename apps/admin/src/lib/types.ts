@@ -55,3 +55,27 @@ export interface MySession {
   service: Service;
   location: Location;
 }
+
+export interface MembershipPlan {
+  id: string;
+  locationId: string | null;
+  name: string;
+  type: "FREE_PAYG" | "LOCATION" | "GLOBAL" | "JUNIOR" | "CORPORATE";
+  price: string;
+  billingPeriod: "NONE" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "ANNUAL";
+  crossLocationAccess: boolean;
+  bookingWindowDays: number | null;
+  includedCredits: number | null;
+  isActive: boolean;
+}
+
+export interface CreditPackage {
+  id: string;
+  locationId: string | null;
+  name: string;
+  creditsIncluded: number;
+  price: string;
+  eligibleServiceType: "CLASS" | "APPOINTMENT" | null;
+  expiryDays: number | null;
+  isActive: boolean;
+}

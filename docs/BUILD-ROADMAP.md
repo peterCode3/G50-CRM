@@ -294,6 +294,17 @@ actually got built, since implementations may diverge slightly from the prompt).
     Waitlist claims (`WaitlistService.claim`) still always charge full price — extending
     membership/credit payment to the claim flow would be a small follow-up if it matters in
     practice.
+  - **Follow-up fix**: Phase 5 originally shipped with no way for HQ to manage `MembershipPlan`s
+    or `CreditPackage`s from `apps/admin` — only golfers could browse/subscribe/purchase from
+    `apps/web`, and creating a plan or package required calling the API directly. Added
+    `GET /membership-plans/admin/all` and `GET /credit-packages/admin/all` (HQ-only, includes
+    inactive ones — same pattern as `GET /locations/admin/all` from Phase 2) plus a new
+    `apps/admin` `/memberships` page (sidebar item, HQ-only): two tables (plans, packages) each
+    with a "+ New ..." button opening a `Modal` create form and an activate/deactivate toggle per
+    row (reusing the existing `isActive` field on `UpdateMembershipPlanDto`/
+    `UpdateCreditPackageDto` rather than adding separate endpoints). Verified with a real
+    browser click-through: created a `JUNIOR` plan through the modal and confirmed it appeared
+    correctly in the table with the right access/status.
 
 ---
 

@@ -25,6 +25,10 @@ export class CreditsService {
     });
   }
 
+  findAll() {
+    return this.prisma.client.creditPackage.findMany({ orderBy: { price: 'asc' } });
+  }
+
   async findOne(id: string) {
     const pkg = await this.prisma.client.creditPackage.findUnique({ where: { id } });
     if (!pkg) {

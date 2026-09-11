@@ -4,7 +4,14 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch, ApiError } from "@/lib/api";
-import type { Location, Service, ServiceTemplate, StaffMember } from "@/lib/types";
+import type {
+  DayHours,
+  Location,
+  OpeningHours,
+  Service,
+  ServiceTemplate,
+  StaffMember,
+} from "@/lib/types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/Card";
@@ -25,6 +32,8 @@ export default function LocationDetailPage() {
   const [staff, setStaff] = useState<StaffMember[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showEditLocation, setShowEditLocation] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -51,6 +60,14 @@ export default function LocationDetailPage() {
       setTemplates([]);
       setStaff([]);
     }
+  }
+
+  async function reloadLocation() {
+    setLocation(await apiFetch<Location>(`/locations/${id}`));
+  }
+
+  async function reloadServices() {
+    setServices(await apiFetch<Service[]>(`/locations/${id}/services`));
   }
 
   async function onActivateTemplate(templateId: string) {
@@ -89,6 +106,9 @@ export default function LocationDetailPage() {
             <Badge variant={location.isActive ? "success" : "danger"}>
               {location.isActive ? "Active" : "Inactive"}
             </Badge>
+            <Button variant="secondary" className="text-xs" onClick={() => setShowEditLocation(true)}>
+              Edit
+            </Button>
             <Link href="/locations">
               <Button variant="secondary" className="text-xs">
                 ← All locations
@@ -98,10 +118,54 @@ export default function LocationDetailPage() {
         }
       />
 
+      <EditLocationModal
+        open={showEditLocation}
+        onClose={() => setShowEditLocation(false)}
+        location={location}
+        onSaved={reloadLocation}
+      />
+      <EditServiceModal
+        service={editingService}
+        onClose={() => setEditingService(null)}
+        onSaved={reloadServices}
+      />
+
       <div className="flex flex-col gap-6 p-8">
         {error && (
           <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">{error}</p>
         )}
+
+        <Card title="Contact & hours">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-teal-700">Phone</dt>
+              <dd className="text-teal-900">{location.phone ?? "—"}</dd>
+              <dt className="text-teal-700">Email</dt>
+              <dd className="text-teal-900">{location.email ?? "—"}</dd>
+              <dt className="text-teal-700">Description</dt>
+              <dd className="text-teal-900">{location.description ?? "—"}</dd>
+            </dl>
+            <div className="text-sm">
+              {location.openingHours ? (
+                <ul className="flex flex-col divide-y divide-teal-50">
+                  {DAYS_OF_WEEK.map(({ key, label }) => {
+                    const day = location.openingHours![key];
+                    return (
+                      <li key={key} className="flex justify-between py-1">
+                        <span className="text-teal-700">{label}</span>
+                        <span className="text-teal-900">
+                          {day.closed ? "Closed" : `${day.open} – ${day.close}`}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="text-teal-700">No business hours set yet — click Edit above.</p>
+              )}
+            </div>
+          </div>
+        </Card>
 
         <Card title={`Activated services (${services.length})`}>
           {services.length === 0 ? (
@@ -131,7 +195,14 @@ export default function LocationDetailPage() {
                       ${svc.price}
                       {svc.memberPrice ? ` / $${svc.memberPrice} member` : ""}
                     </td>
-                    <td className="py-2.5 pr-4 text-right">
+                    <td className="py-2.5 pr-4 text-right whitespace-nowrap">
+                      <Button
+                        variant="ghost"
+                        className="!px-2 !py-1 text-xs"
+                        onClick={() => setEditingService(svc)}
+                      >
+                        Edit
+                      </Button>
                       <Link href={`/locations/${id}/services/${svc.id}/schedule`}>
                         <Button variant="ghost" className="!px-2 !py-1 text-xs">
                           Schedule →
@@ -349,5 +420,341 @@ function StaffSection({
         </form>
       </Modal>
     </>
+  );
+}
+
+const DAYS_OF_WEEK: { key: keyof OpeningHours; label: string }[] = [
+  { key: "monday", label: "Monday" },
+  { key: "tuesday", label: "Tuesday" },
+  { key: "wednesday", label: "Wednesday" },
+  { key: "thursday", label: "Thursday" },
+  { key: "friday", label: "Friday" },
+  { key: "saturday", label: "Saturday" },
+  { key: "sunday", label: "Sunday" },
+];
+
+function defaultOpeningHours(): OpeningHours {
+  const weekday: DayHours = { closed: false, open: "09:00", close: "17:00" };
+  const weekend: DayHours = { closed: true, open: "09:00", close: "17:00" };
+  return {
+    monday: weekday,
+    tuesday: weekday,
+    wednesday: weekday,
+    thursday: weekday,
+    friday: weekday,
+    saturday: weekend,
+    sunday: weekend,
+  };
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-xs font-semibold tracking-wide text-teal-700 uppercase">{children}</h3>
+  );
+}
+
+function EditLocationModal({
+  open,
+  onClose,
+  location,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  location: Location;
+  onSaved: () => Promise<void>;
+}) {
+  const [name, setName] = useState(location.name);
+  const [address, setAddress] = useState(location.address ?? "");
+  const [phone, setPhone] = useState(location.phone ?? "");
+  const [email, setEmail] = useState(location.email ?? "");
+  const [description, setDescription] = useState(location.description ?? "");
+  const [logoUrl, setLogoUrl] = useState(location.logoUrl ?? "");
+  const [hours, setHours] = useState<OpeningHours>(location.openingHours ?? defaultOpeningHours());
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Re-sync form fields whenever a different (or refreshed) location is opened.
+  useEffect(() => {
+    if (!open) return;
+    setName(location.name);
+    setAddress(location.address ?? "");
+    setPhone(location.phone ?? "");
+    setEmail(location.email ?? "");
+    setDescription(location.description ?? "");
+    setLogoUrl(location.logoUrl ?? "");
+    setHours(location.openingHours ?? defaultOpeningHours());
+    setError(null);
+  }, [open, location]);
+
+  function updateDay(day: keyof OpeningHours, patch: Partial<DayHours>) {
+    setHours((prev) => ({ ...prev, [day]: { ...prev[day], ...patch } }));
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await apiFetch(`/locations/${location.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          address: address || undefined,
+          phone: phone || undefined,
+          email: email || undefined,
+          description: description || undefined,
+          logoUrl: logoUrl || undefined,
+          openingHours: hours,
+        }),
+      });
+      onClose();
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Edit location" description={`/${location.slug}`} wide>
+      <form onSubmit={onSubmit} className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
+          <SectionLabel>General details</SectionLabel>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Name</span>
+            <input
+              required
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Address</span>
+            <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputClass} />
+          </label>
+          <div className="flex gap-3">
+            <label className="flex flex-1 flex-col gap-1.5 text-sm">
+              <span className="font-medium text-teal-900">Phone</span>
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
+            </label>
+            <label className="flex flex-1 flex-col gap-1.5 text-sm">
+              <span className="font-medium text-teal-900">Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+          </div>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Logo URL</span>
+            <input
+              placeholder="https://..."
+              value={logoUrl}
+              onChange={(e) => setLogoUrl(e.target.value)}
+              className={inputClass}
+            />
+            <span className="text-xs text-teal-700/70">
+              Direct file upload isn&apos;t built yet — paste a hosted image URL for now.
+            </span>
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Description</span>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-teal-50 pt-5">
+          <SectionLabel>Business hours</SectionLabel>
+          <div className="flex flex-col divide-y divide-teal-50">
+            {DAYS_OF_WEEK.map(({ key, label }) => {
+              const day = hours[key];
+              return (
+                <div key={key} className="flex items-center gap-3 py-2">
+                  <label className="flex w-32 shrink-0 items-center gap-2 text-sm text-teal-900">
+                    <input
+                      type="checkbox"
+                      checked={!day.closed}
+                      onChange={(e) => updateDay(key, { closed: !e.target.checked })}
+                      className="h-4 w-4 rounded border-teal-300"
+                    />
+                    {label}
+                  </label>
+                  {day.closed ? (
+                    <span className="text-sm text-teal-700/60">Closed all day</span>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm">
+                      <input
+                        type="time"
+                        value={day.open}
+                        onChange={(e) => updateDay(key, { open: e.target.value })}
+                        className={`${inputClass} !py-1`}
+                      />
+                      <span className="text-teal-700/60">to</span>
+                      <input
+                        type="time"
+                        value={day.close}
+                        onChange={(e) => updateDay(key, { close: e.target.value })}
+                        className={`${inputClass} !py-1`}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2 border-t border-teal-50 pt-4">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function EditServiceModal({
+  service,
+  onClose,
+  onSaved,
+}: {
+  service: Service | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState("");
+  const [capacity, setCapacity] = useState("");
+  const [price, setPrice] = useState("");
+  const [memberPrice, setMemberPrice] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!service) return;
+    setName(service.name);
+    setDurationMinutes(String(service.durationMinutes));
+    setCapacity(service.capacity != null ? String(service.capacity) : "");
+    setPrice(service.price);
+    setMemberPrice(service.memberPrice ?? "");
+    setError(null);
+  }, [service]);
+
+  if (!service) return null;
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!service) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await apiFetch(`/services/${service.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          durationMinutes: Number(durationMinutes),
+          capacity: capacity ? Number(capacity) : undefined,
+          price: Number(price),
+          memberPrice: memberPrice ? Number(memberPrice) : undefined,
+        }),
+      });
+      onClose();
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={!!service}
+      onClose={onClose}
+      title="Edit service"
+      description={`${service.type === "CLASS" ? "Class" : "Appointment"} at this location`}
+    >
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Name</span>
+          <input
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Duration (min)</span>
+            <input
+              required
+              type="number"
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Capacity</span>
+            <input
+              type="number"
+              placeholder="Unlimited"
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Price</span>
+            <input
+              required
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Member price</span>
+            <input
+              type="number"
+              placeholder="Optional"
+              value={memberPrice}
+              onChange={(e) => setMemberPrice(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

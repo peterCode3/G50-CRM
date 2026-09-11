@@ -9,12 +9,15 @@ export function Modal({
   title,
   description,
   children,
+  wide = false,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   description?: string;
   children: React.ReactNode;
+  /** Use for content-dense forms (multiple sections, side-by-side fields) that feel cramped at the default width. */
+  wide?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -42,7 +45,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white shadow-xl"
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-xl bg-white shadow-xl ${wide ? "max-w-2xl" : "max-w-xl"}`}
       >
         <div className="flex items-start justify-between border-b border-teal-50 px-6 py-4">
           <div>

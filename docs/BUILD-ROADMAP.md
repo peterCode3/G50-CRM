@@ -336,6 +336,39 @@ actually got built, since implementations may diverge slightly from the prompt).
     stats, only location/template counts and session-count charts. Templates/Memberships pages
     still use plain tables rather than the new card style — lower priority since they're simpler,
     lower-volume lists than Locations/Staff.
+- **Edit actions everywhere + a real font bug fix** — direct follow-up after the user clarified
+  what they actually wanted: not a literal WellnessLiving clone, but *our* feature set with that
+  level of design polish, using WellnessLiving's Locations/Staff Roles pages as concrete
+  reference points.
+  - **Found a real, longstanding bug while chasing "the font isn't good"**: both apps load the
+    Geist font via `next/font` (exposed as `--font-geist-sans`) but `globals.css` hardcoded
+    `font-family: Arial, Helvetica, sans-serif` directly on `body`, silently overriding it —
+    every page in both apps had been rendering in Arial the entire time, not the font that was
+    actually loaded. Fixed in both `apps/web` and `apps/admin`; confirmed via
+    `getComputedStyle(document.body).fontFamily` in a real browser that it now resolves to
+    `Geist, "Geist Fallback", ui-sans-serif, ...` instead of Arial.
+  - **Edit added for every create-only entity**: Location (name, address, phone, email,
+    description, logo URL), activated Service (name, duration, capacity, price, member price),
+    HQ Service Template (same fields), Membership Plan, and Credit Package — all via a `Modal`
+    edit form pre-filled from the current record, `PATCH`ing the same endpoints the toggle
+    actions already used. `Modal` gained a `wide` variant (`max-w-2xl`) for the denser Location
+    form rather than cramming everything into the default width.
+  - **Business hours, for real**: `Location.openingHours` (a `Json?` column that existed in the
+    schema since Phase 0 but had no UI) is now a structured 7-day editor in the Location edit
+    modal — a checkbox per day (open/closed) plus `<input type="time">` pairs when open, matching
+    the reference's day-by-day toggle pattern. Saved as a typed `OpeningHours` object
+    (`apps/admin/src/lib/types.ts`), not a loose blob. Also surfaced read-only on the location
+    detail page in a new "Contact & hours" card, so the data isn't buried inside an edit modal.
+  - **Known limitation, called out to the user rather than silently faked**: there's no real
+    image upload — no file storage/serving infrastructure exists yet (would need multer or
+    similar on the API plus a storage decision: local disk vs. a cloud bucket). The Location edit
+    form takes a **Logo URL** text field instead (the schema already had `logoUrl: String?`) as an
+    honest interim stand-in, with a visible caption explaining why. Building real upload is a
+    reasonable follow-up but is a distinct, larger feature, not a quick styling fix.
+  - **Deliberately not built**: WellnessLiving-specific features that don't map to the G50 spec at
+    all — "Explorer Listing" (their public marketplace/SEO directory), "Integrations" (their app
+    marketplace), "Leads" — the user was explicit that they want *our* documented feature set, not
+    WellnessLiving's, just at that visual/UX quality bar.
 
 ---
 

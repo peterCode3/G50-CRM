@@ -20,6 +20,7 @@ export default function TemplatesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<ServiceTemplate | null>(null);
 
   const [name, setName] = useState("");
   const [type, setType] = useState<"CLASS" | "APPOINTMENT">("CLASS");
@@ -181,6 +182,12 @@ export default function TemplatesPage() {
         </form>
       </Modal>
 
+      <EditTemplateModal
+        template={editingTemplate}
+        onClose={() => setEditingTemplate(null)}
+        onSaved={loadTemplates}
+      />
+
       <div className="flex flex-col gap-6 p-8">
         <Card className="overflow-hidden !p-0">
           {templates.length === 0 ? (
@@ -194,6 +201,7 @@ export default function TemplatesPage() {
                   <th className="px-5 py-3">Duration</th>
                   <th className="px-5 py-3">Capacity</th>
                   <th className="px-5 py-3">Price</th>
+                  <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-teal-50">
@@ -209,6 +217,15 @@ export default function TemplatesPage() {
                       ${tpl.defaultPrice}
                       {tpl.defaultMemberPrice ? ` / $${tpl.defaultMemberPrice} member` : ""}
                     </td>
+                    <td className="px-5 py-3 text-right">
+                      <Button
+                        variant="ghost"
+                        className="!px-2 !py-1 text-xs"
+                        onClick={() => setEditingTemplate(tpl)}
+                      >
+                        Edit
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -217,5 +234,135 @@ export default function TemplatesPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+function EditTemplateModal({
+  template,
+  onClose,
+  onSaved,
+}: {
+  template: ServiceTemplate | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [duration, setDuration] = useState("");
+  const [capacity, setCapacity] = useState("");
+  const [price, setPrice] = useState("");
+  const [memberPrice, setMemberPrice] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!template) return;
+    setName(template.name);
+    setDuration(String(template.defaultDurationMinutes));
+    setCapacity(template.defaultCapacity != null ? String(template.defaultCapacity) : "");
+    setPrice(template.defaultPrice);
+    setMemberPrice(template.defaultMemberPrice ?? "");
+    setError(null);
+  }, [template]);
+
+  if (!template) return null;
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!template) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await apiFetch(`/service-templates/${template.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          defaultDurationMinutes: Number(duration),
+          defaultCapacity: capacity ? Number(capacity) : undefined,
+          defaultPrice: Number(price),
+          defaultMemberPrice: memberPrice ? Number(memberPrice) : undefined,
+        }),
+      });
+      onClose();
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={!!template}
+      onClose={onClose}
+      title="Edit service template"
+      description={template.type === "CLASS" ? "Class" : "Appointment"}
+    >
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Name</span>
+          <input
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Duration (min)</span>
+            <input
+              required
+              type="number"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Capacity</span>
+            <input
+              type="number"
+              placeholder="Classes only"
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Default price</span>
+            <input
+              required
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Member price</span>
+            <input
+              type="number"
+              placeholder="Optional"
+              value={memberPrice}
+              onChange={(e) => setMemberPrice(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

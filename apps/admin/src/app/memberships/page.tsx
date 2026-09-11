@@ -77,6 +77,7 @@ function MembershipPlansSection({
   onChanged: () => Promise<void>;
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<MembershipPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -257,7 +258,10 @@ function MembershipPlansSection({
                     {plan.isActive ? "Active" : "Inactive"}
                   </Badge>
                 </td>
-                <td className="py-2.5 pr-4 text-right">
+                <td className="py-2.5 pr-4 text-right whitespace-nowrap">
+                  <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => setEditingPlan(plan)}>
+                    Edit
+                  </Button>
                   <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => onToggleActive(plan)}>
                     {plan.isActive ? "Deactivate" : "Activate"}
                   </Button>
@@ -267,7 +271,139 @@ function MembershipPlansSection({
           </tbody>
         </table>
       )}
+
+      <EditMembershipPlanModal
+        plan={editingPlan}
+        onClose={() => setEditingPlan(null)}
+        onSaved={onChanged}
+      />
     </Card>
+  );
+}
+
+function EditMembershipPlanModal({
+  plan,
+  onClose,
+  onSaved,
+}: {
+  plan: MembershipPlan | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [billingPeriod, setBillingPeriod] = useState<MembershipPlan["billingPeriod"]>("MONTHLY");
+  const [crossLocationAccess, setCrossLocationAccess] = useState(false);
+  const [includedCredits, setIncludedCredits] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!plan) return;
+    setName(plan.name);
+    setPrice(plan.price);
+    setBillingPeriod(plan.billingPeriod);
+    setCrossLocationAccess(plan.crossLocationAccess);
+    setIncludedCredits(plan.includedCredits != null ? String(plan.includedCredits) : "");
+    setError(null);
+  }, [plan]);
+
+  if (!plan) return null;
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!plan) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await apiFetch(`/membership-plans/${plan.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          price: Number(price),
+          billingPeriod,
+          crossLocationAccess,
+          includedCredits: includedCredits ? Number(includedCredits) : undefined,
+        }),
+      });
+      onClose();
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal open={!!plan} onClose={onClose} title="Edit membership plan" description={plan.type.replace("_", " ")}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Name</span>
+          <input
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Price</span>
+            <input
+              required
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Billing period</span>
+            <select
+              value={billingPeriod}
+              onChange={(e) => setBillingPeriod(e.target.value as MembershipPlan["billingPeriod"])}
+              className={inputClass}
+            >
+              <option value="NONE">One-time</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="MONTHLY">Monthly</option>
+              <option value="QUARTERLY">Quarterly</option>
+              <option value="ANNUAL">Annual</option>
+            </select>
+          </label>
+        </div>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Included credits</span>
+          <input
+            type="number"
+            placeholder="Optional"
+            value={includedCredits}
+            onChange={(e) => setIncludedCredits(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-teal-900">
+          <input
+            type="checkbox"
+            checked={crossLocationAccess}
+            onChange={(e) => setCrossLocationAccess(e.target.checked)}
+            className="h-4 w-4 rounded border-teal-300"
+          />
+          Valid at every G50.Golf location (not just one)
+        </label>
+        {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -279,6 +415,7 @@ function CreditPackagesSection({
   onChanged: () => Promise<void>;
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingPackage, setEditingPackage] = useState<CreditPackage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -444,7 +581,10 @@ function CreditPackagesSection({
                     {pkg.isActive ? "Active" : "Inactive"}
                   </Badge>
                 </td>
-                <td className="py-2.5 pr-4 text-right">
+                <td className="py-2.5 pr-4 text-right whitespace-nowrap">
+                  <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => setEditingPackage(pkg)}>
+                    Edit
+                  </Button>
                   <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => onToggleActive(pkg)}>
                     {pkg.isActive ? "Deactivate" : "Activate"}
                   </Button>
@@ -454,6 +594,139 @@ function CreditPackagesSection({
           </tbody>
         </table>
       )}
+
+      <EditCreditPackageModal
+        pkg={editingPackage}
+        onClose={() => setEditingPackage(null)}
+        onSaved={onChanged}
+      />
     </Card>
+  );
+}
+
+function EditCreditPackageModal({
+  pkg,
+  onClose,
+  onSaved,
+}: {
+  pkg: CreditPackage | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [creditsIncluded, setCreditsIncluded] = useState("");
+  const [price, setPrice] = useState("");
+  const [eligibleServiceType, setEligibleServiceType] = useState<"" | "CLASS" | "APPOINTMENT">("");
+  const [expiryDays, setExpiryDays] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!pkg) return;
+    setName(pkg.name);
+    setCreditsIncluded(String(pkg.creditsIncluded));
+    setPrice(pkg.price);
+    setEligibleServiceType(pkg.eligibleServiceType ?? "");
+    setExpiryDays(pkg.expiryDays != null ? String(pkg.expiryDays) : "");
+    setError(null);
+  }, [pkg]);
+
+  if (!pkg) return null;
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pkg) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await apiFetch(`/credit-packages/${pkg.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          creditsIncluded: Number(creditsIncluded),
+          price: Number(price),
+          eligibleServiceType: eligibleServiceType || undefined,
+          expiryDays: expiryDays ? Number(expiryDays) : undefined,
+        }),
+      });
+      onClose();
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal open={!!pkg} onClose={onClose} title="Edit credit package">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Name</span>
+          <input
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Credits included</span>
+            <input
+              required
+              type="number"
+              value={creditsIncluded}
+              onChange={(e) => setCreditsIncluded(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Price</span>
+            <input
+              required
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Eligible for</span>
+            <select
+              value={eligibleServiceType}
+              onChange={(e) => setEligibleServiceType(e.target.value as "" | "CLASS" | "APPOINTMENT")}
+              className={inputClass}
+            >
+              <option value="">Classes & appointments</option>
+              <option value="CLASS">Classes only</option>
+              <option value="APPOINTMENT">Appointments only</option>
+            </select>
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Expires after (days)</span>
+            <input
+              type="number"
+              placeholder="Optional"
+              value={expiryDays}
+              onChange={(e) => setExpiryDays(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

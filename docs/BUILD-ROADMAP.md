@@ -451,6 +451,47 @@ actually got built, since implementations may diverge slightly from the prompt).
     was asked) and a toast/notification system (existing inline error/success banners just gained
     a fade-in rather than being replaced wholesale — a bigger toast-queue rework is a reasonable
     separate follow-up if it's wanted).
+- **Phase 7 (second half) — Reporting & Dashboards** — completes Phase 7 now that Attendance
+  feeds real data into it. Verified with curl against real dev data (not just empty-state checks)
+  and confirmed HQ vs. Location Admin scoping behaves like every other reports-adjacent endpoint.
+  - **API** (`apps/api/src/reports/`): `GET /reports/overview` (filterable by `locationId`, `from`,
+    `to`, `serviceId`, `coachId`) aggregates bookings-by-status, attendance-by-status +
+    attendance rate, revenue total + by-day series, class utilisation (booked vs. session capacity
+    per service), coach activity (sessions run/bookings handled/attendance marked per coach), and
+    active/expired membership counts — all from one pass over the filtered `Booking` rows (plus a
+    small second query for session capacity), aggregated in application code the same way
+    `SessionsService.findUpcomingSummary` already does, not raw SQL. `GET /reports/export.csv`
+    returns the same filtered scope as row-per-booking CSV (date, location, service, coach,
+    golfer, statuses, price) with a real `Content-Disposition: attachment` header.
+  - **Revenue definition, deliberately narrow**: only `CONFIRMED`/`COMPLETED`/`NO_SHOW` bookings'
+    `priceCharged` count as revenue — a `CANCELLED` booking's `priceCharged` is never counted,
+    since nothing was ultimately collected for it (no Stripe integration exists yet to model an
+    actual refund; see Phase 6, still not built). This falls directly out of Phase 4/5's existing
+    fields, no schema change needed.
+  - **Reused the exact scoping pattern from every prior phase**: `assertManagesLocation()` when a
+    `locationId` filter is given; when it isn't, HQ gets the whole network (`null` scope) and a
+    Location Admin is silently restricted to the location(s) they actually manage (an empty array
+    if they manage none — returns a real zeroed-out response shape, not an error, matching
+    `findUpcomingSummary`'s empty-state precedent).
+  - **Verified with curl against real data**: HQ's unscoped overview and a Twin Waters Location
+    Admin's unscoped overview returned identical numbers (Twin Waters is the only location with
+    data in dev) — confirming the auto-scope actually filters rather than coincidentally matching;
+    filtering to a location the Twin Waters admin does *not* manage correctly 403s with the same
+    message `assertManagesLocation` gives everywhere else; a `CUSTOMER` account correctly 403s on
+    `/reports/overview` outright (route-level `@Roles(HQ_ADMIN, LOCATION_ADMIN)`); CSV export
+    verified by inspecting real output rows against the same filtered dataset.
+  - **Frontend**: new `/reports` page in `apps/admin` (sidebar item moved out of "Coming soon" —
+    only Bookings/Customers/Payments remain there now), with location + date-range filters, four
+    stat cards (bookings, revenue, attendance rate, active memberships), a revenue-by-day
+    `BarChart` (reusing the existing component from the dashboard chart work), bookings-by-status
+    and attendance-by-status breakdowns, and class-utilisation / coach-activity tables. "Export
+    CSV" is a plain link straight to the API's CSV endpoint (not a fetch+blob dance) — the auth
+    cookie is host-only for `localhost` with no domain restriction, so it's sent automatically
+    across the 3001→3333 port boundary on a direct navigation, same as any other same-host request.
+  - **Not yet built**: there's no `Payment` data to report on (Phase 6 isn't built yet) — revenue
+    is derived entirely from `Booking.priceCharged`, which is accurate for what's actually been
+    charged today but won't reflect refunds/failed charges once Stripe exists. Membership/credit
+    package *sales* revenue isn't broken out separately from booking revenue yet.
 
 ---
 
@@ -472,21 +513,6 @@ data directly (spec §14).
 > ledger and needs no Stripe involvement; a `MEMBERSHIP`-paid booking still charges
 > `memberPrice`. Store only `provider` + `providerRef`, never raw card data. Add Stripe Elements
 > to the booking/purchase confirmation steps in `apps/web`.
-
----
-
-### Phase 7 — Reporting & Dashboards
-
-**Flow:** HQ and Location Admin get filterable dashboards with CSV export (spec §16). Attendance
-itself (spec §11, §12) is already done — see the Done section above.
-
-**Prompt:**
-> Build HQ and Location Admin dashboards in `apps/admin` showing bookings, attendance, class
-> utilisation, revenue, memberships, and coach activity — filterable by location/date/service/
-> coach, with CSV export. This needs new aggregate endpoints in `apps/api` (bookings/attendance/
-> revenue don't have summary queries yet, only the existing `GET /sessions/summary` for chart
-> data from an earlier phase) and a real number for "revenue" pulled from `Booking.priceCharged`
-> — there's no `Payment` data to report on until Phase 6 is done.
 
 ---
 

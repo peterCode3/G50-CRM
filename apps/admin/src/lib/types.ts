@@ -116,3 +116,36 @@ export interface RosterEntry {
   bookingStatus: string;
   attendanceStatus: AttendanceStatus | null;
 }
+
+export interface ReportOverview {
+  range: { from: string; to: string };
+  bookings: {
+    total: number;
+    byStatus: Record<"CONFIRMED" | "CANCELLED" | "WAITLISTED" | "COMPLETED" | "NO_SHOW", number>;
+  };
+  attendance: {
+    total: number;
+    byStatus: Record<AttendanceStatus, number>;
+    attendanceRate: number | null;
+  };
+  revenue: {
+    total: string;
+    byDay: { date: string; amount: string }[];
+  };
+  classUtilisation: {
+    serviceId: string;
+    serviceName: string;
+    type: "CLASS" | "APPOINTMENT";
+    totalBooked: number;
+    totalCapacity: number | null;
+    utilisationPct: number | null;
+  }[];
+  coachActivity: {
+    coachId: string;
+    name: string;
+    sessionsRun: number;
+    bookingsHandled: number;
+    attendanceMarked: number;
+  }[];
+  memberships: { activeCount: number; expiredOrCancelledCount: number };
+}

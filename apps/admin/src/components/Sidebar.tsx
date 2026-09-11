@@ -21,13 +21,13 @@ const NAV_ITEMS: {
   { href: "/classes", label: "Classes", icon: TemplateIcon, hqOnly: true },
   { href: "/appointments", label: "Appointments", icon: AppointmentIcon, hqOnly: true },
   { href: "/memberships", label: "Memberships", icon: MembershipIcon, hqOnly: true },
+  { href: "/reports", label: "Reports", icon: ReportIcon, locationAdminOnly: true },
 ];
 
 const SOON_ITEMS = [
   { label: "Bookings", icon: BookingIcon },
   { label: "Customers", icon: CustomerIcon },
   { label: "Payments", icon: PaymentIcon },
-  { label: "Reports", icon: ReportIcon },
 ];
 
 export function Sidebar() {

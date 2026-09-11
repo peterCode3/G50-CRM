@@ -17,6 +17,7 @@ import { WaitlistModule } from './waitlist/waitlist.module.js';
 import { MembershipsModule } from './memberships/memberships.module.js';
 import { CreditsModule } from './credits/credits.module.js';
 import { AttendanceModule } from './attendance/attendance.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AttendanceModule } from './attendance/attendance.module.js';
     MembershipsModule,
     CreditsModule,
     AttendanceModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Booking, WaitlistEntry } from "@/lib/types";
+import { Badge } from "@/components/Badge";
+import { Button } from "@/components/Button";
+import { CalendarIcon, PinIcon } from "@/components/icons";
 
 function formatSessionTime(iso: string) {
   const d = new Date(iso);
@@ -21,6 +24,14 @@ function paymentLabel(b: Booking): string {
   if (b.priceCharged === "0") return "Paid with 1 credit";
   return b.priceCharged ? `$${b.priceCharged}` : "";
 }
+
+const STATUS_VARIANT = {
+  CANCELLED: "danger",
+  COMPLETED: "success",
+  NO_SHOW: "warning",
+  CONFIRMED: "neutral",
+  WAITLISTED: "neutral",
+} as const;
 
 export default function BookingsPage() {
   const router = useRouter();
@@ -93,10 +104,15 @@ export default function BookingsPage() {
     .sort((a, b) => b.session.startTime.localeCompare(a.session.startTime));
 
   return (
-    <main className="flex flex-1 flex-col bg-teal-50/40 px-6 py-10">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-        <h1 className="text-2xl font-semibold text-teal-900">My Bookings</h1>
+    <main className="flex flex-1 flex-col bg-teal-50/40">
+      <section className="border-b border-teal-100 bg-white px-6 py-10">
+        <div className="mx-auto max-w-3xl">
+          <h1 className="text-2xl font-semibold text-teal-900">My Bookings</h1>
+          <p className="mt-1 text-sm text-teal-700">Your upcoming sessions, waitlist spots and history.</p>
+        </div>
+      </section>
 
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-10">
         {actionError && (
           <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">{actionError}</p>
         )}
@@ -107,29 +123,32 @@ export default function BookingsPage() {
               Waitlist
             </h2>
             <div className="flex flex-col gap-2">
-              {waitlist.map((w) => (
+              {waitlist.map((w, i) => (
                 <div
                   key={w.id}
-                  className="flex items-center justify-between rounded-lg border border-teal-100 bg-white p-4 shadow-sm"
+                  style={{ animationDelay: `${i * 40}ms` }}
+                  className="animate-fade-in-up flex items-center justify-between rounded-lg border border-teal-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
                 >
                   <div className="text-sm">
                     <p className="font-medium text-teal-900">{w.session.service.name}</p>
-                    <p className="text-teal-700">
-                      {formatSessionTime(w.session.startTime)} · {w.session.location.name}
+                    <p className="mt-0.5 flex items-center gap-1.5 text-teal-700">
+                      <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                      {formatSessionTime(w.session.startTime)}
+                      <PinIcon className="ml-1 h-3.5 w-3.5 shrink-0" />
+                      {w.session.location.name}
                     </p>
-                    <p className="mt-1 text-xs text-teal-700/70">
-                      {w.status === "NOTIFIED"
-                        ? "A spot is open for you!"
-                        : `Waiting — position ${w.position}`}
+                    <p className="mt-1.5">
+                      {w.status === "NOTIFIED" ? (
+                        <Badge variant="success">A spot is open for you!</Badge>
+                      ) : (
+                        <Badge variant="neutral">Waiting — position {w.position}</Badge>
+                      )}
                     </p>
                   </div>
                   {w.status === "NOTIFIED" && (
-                    <button
-                      onClick={() => onClaim(w.id)}
-                      className="rounded-md bg-gold-500 px-3 py-1.5 text-xs font-medium text-teal-900 transition hover:bg-gold-700"
-                    >
+                    <Button className="!px-3 !py-1.5 text-xs" onClick={() => onClaim(w.id)}>
                       Claim spot
-                    </button>
+                    </Button>
                   )}
                 </div>
               ))}
@@ -145,24 +164,29 @@ export default function BookingsPage() {
             <p className="text-sm text-teal-700">No upcoming bookings.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {upcoming.map((b) => (
+              {upcoming.map((b, i) => (
                 <div
                   key={b.id}
-                  className="flex items-center justify-between rounded-lg border border-teal-100 bg-white p-4 shadow-sm"
+                  style={{ animationDelay: `${i * 40}ms` }}
+                  className="animate-fade-in-up flex items-center justify-between rounded-lg border border-teal-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
                 >
                   <div className="text-sm">
                     <p className="font-medium text-teal-900">{b.session.service.name}</p>
-                    <p className="text-teal-700">
-                      {formatSessionTime(b.session.startTime)} · {b.session.location.name}
+                    <p className="mt-0.5 flex items-center gap-1.5 text-teal-700">
+                      <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                      {formatSessionTime(b.session.startTime)}
+                      <PinIcon className="ml-1 h-3.5 w-3.5 shrink-0" />
+                      {b.session.location.name}
                     </p>
-                    <p className="mt-0.5 text-xs text-teal-700/70">{paymentLabel(b)}</p>
+                    <p className="mt-1 text-xs text-teal-700/70">{paymentLabel(b)}</p>
                   </div>
-                  <button
+                  <Button
+                    variant="secondary"
+                    className="!border-red-200 !px-3 !py-1.5 text-xs !text-red-600 hover:!bg-red-50"
                     onClick={() => onCancel(b.id)}
-                    className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -182,11 +206,14 @@ export default function BookingsPage() {
                 >
                   <div>
                     <p className="font-medium text-teal-900">{b.session.service.name}</p>
-                    <p className="text-teal-700">
-                      {formatSessionTime(b.session.startTime)} · {b.session.location.name}
+                    <p className="mt-0.5 flex items-center gap-1.5 text-teal-700">
+                      <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                      {formatSessionTime(b.session.startTime)}
+                      <PinIcon className="ml-1 h-3.5 w-3.5 shrink-0" />
+                      {b.session.location.name}
                     </p>
                   </div>
-                  <span className="text-xs text-teal-700/70">{b.status.replace("_", " ")}</span>
+                  <Badge variant={STATUS_VARIANT[b.status]}>{b.status.replace("_", " ")}</Badge>
                 </div>
               ))}
             </div>

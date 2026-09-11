@@ -13,6 +13,31 @@ import type {
   UserMembership,
 } from "@/lib/types";
 import { StripePaymentPanel } from "@/components/StripePaymentPanel";
+import { Badge } from "@/components/Badge";
+import { Button } from "@/components/Button";
+import { ClockIcon, FlagIcon, PinIcon } from "@/components/icons";
+
+function formatDateHeading(date: Date): string {
+  const today = new Date();
+  const isToday = date.toDateString() === today.toDateString();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+  if (isToday) return "Today";
+  if (isTomorrow) return "Tomorrow";
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+}
+
+function groupByDay(sessions: SessionWithAvailability[]): [string, SessionWithAvailability[]][] {
+  const groups = new Map<string, SessionWithAvailability[]>();
+  for (const s of sessions) {
+    const key = new Date(s.startTime).toDateString();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(s);
+  }
+  return [...groups.entries()];
+}
 
 export default function LocationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -91,15 +116,36 @@ export default function LocationDetailPage() {
     );
   }
 
+  const classes = services.filter((s) => s.type === "CLASS");
+  const appointments = services.filter((s) => s.type === "APPOINTMENT");
+
+  const commonProps = {
+    isLoggedIn,
+    myMemberships,
+    myBalances,
+    onNeedLogin: () => router.push("/login"),
+    onChanged: refreshSessionsFor,
+  };
+
   return (
     <main className="flex flex-1 flex-col bg-teal-50/40">
-      <section className="border-b border-teal-100 bg-white px-6 py-10">
+      <section className="border-b border-teal-100 bg-gradient-to-br from-teal-900 to-teal-700 px-6 py-12">
         <div className="mx-auto max-w-4xl">
-          <Link href="/" className="text-sm text-teal-700 hover:underline">
+          <Link
+            href="/"
+            className="text-sm text-teal-100/80 transition hover:text-white hover:underline"
+          >
             ← All locations
           </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-teal-900">{location.name}</h1>
-          {location.address && <p className="mt-1 text-teal-700">{location.address}</p>}
+          <h1 className="animate-fade-in-up mt-2 text-3xl font-semibold text-white">
+            {location.name}
+          </h1>
+          {location.address && (
+            <p className="animate-fade-in-up mt-2 flex items-center gap-1.5 text-teal-100">
+              <PinIcon className="h-4 w-4 shrink-0" />
+              {location.address}
+            </p>
+          )}
         </div>
       </section>
 
@@ -107,20 +153,34 @@ export default function LocationDetailPage() {
         {services.length === 0 && (
           <p className="text-sm text-teal-700">No classes or appointments available yet.</p>
         )}
-        <div className="flex flex-col gap-6">
-          {services.map((svc) => (
-            <ServiceCard
-              key={svc.id}
-              service={svc}
-              sessions={sessionsByService[svc.id] ?? []}
-              isLoggedIn={isLoggedIn}
-              myMemberships={myMemberships}
-              myBalances={myBalances}
-              onNeedLogin={() => router.push("/login")}
-              onChanged={() => refreshSessionsFor(svc.id)}
-            />
-          ))}
-        </div>
+
+        {classes.length > 0 && (
+          <div className="mb-10">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-teal-900">
+              <FlagIcon className="h-5 w-5 text-teal-700" />
+              Classes
+            </h2>
+            <div className="flex flex-col gap-6">
+              {classes.map((svc, i) => (
+                <ServiceCard key={svc.id} service={svc} index={i} {...commonProps} sessions={sessionsByService[svc.id] ?? []} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {appointments.length > 0 && (
+          <div>
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-teal-900">
+              <ClockIcon className="h-5 w-5 text-gold-900" />
+              Appointments
+            </h2>
+            <div className="flex flex-col gap-6">
+              {appointments.map((svc, i) => (
+                <ServiceCard key={svc.id} service={svc} index={i} {...commonProps} sessions={sessionsByService[svc.id] ?? []} />
+              ))}
+            </div>
+          </div>
+        )}
       </section>
     </main>
   );
@@ -129,6 +189,7 @@ export default function LocationDetailPage() {
 function ServiceCard({
   service,
   sessions,
+  index,
   isLoggedIn,
   myMemberships,
   myBalances,
@@ -137,13 +198,15 @@ function ServiceCard({
 }: {
   service: Service;
   sessions: SessionWithAvailability[];
+  index: number;
   isLoggedIn: boolean;
   myMemberships: UserMembership[];
   myBalances: CreditBalance[];
   onNeedLogin: () => void;
-  onChanged: () => void;
+  onChanged: (serviceId: string) => void;
 }) {
   const now = new Date();
+  const accent = service.type === "CLASS" ? "border-l-teal-600" : "border-l-gold-500";
 
   const hasEligibleMembership = myMemberships.some((m) => {
     if (m.status !== "ACTIVE") return false;
@@ -160,40 +223,61 @@ function ServiceCard({
     );
   });
 
+  const dayGroups = groupByDay(sessions);
+
   return (
-    <div className="rounded-xl border border-teal-100 bg-white p-6 shadow-sm">
-      <div className="flex items-start justify-between">
+    <div
+      style={{ animationDelay: `${index * 60}ms` }}
+      className={`animate-fade-in-up rounded-xl border border-l-4 border-teal-100 bg-white p-6 shadow-sm transition-shadow duration-200 hover:shadow-md ${accent}`}
+    >
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-teal-900">{service.name}</h2>
+          <h3 className="text-lg font-semibold text-teal-900">{service.name}</h3>
           {service.description && (
             <p className="mt-1 text-sm text-teal-700">{service.description}</p>
           )}
         </div>
-        <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-700">
-          {service.type}
-        </span>
+        <Badge variant={service.type === "CLASS" ? "neutral" : "gold"}>{service.type}</Badge>
       </div>
-      <p className="mt-2 text-sm text-teal-700">
-        {service.durationMinutes} min · ${service.price}
-        {service.memberPrice ? ` (members $${service.memberPrice})` : ""}
-      </p>
 
-      <div className="mt-4 flex flex-col divide-y divide-teal-50">
-        {sessions.length === 0 && (
-          <p className="py-3 text-sm text-teal-700">No upcoming sessions in the next 30 days.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-teal-700">
+        <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1">
+          <ClockIcon className="h-3 w-3" />
+          {service.durationMinutes} min
+        </span>
+        <span className="rounded-full bg-teal-50 px-2.5 py-1 font-medium">${service.price}</span>
+        {service.memberPrice && (
+          <span className="rounded-full bg-gold-50 px-2.5 py-1 font-medium text-gold-900">
+            Members ${service.memberPrice}
+          </span>
         )}
-        {sessions.map((s) => (
-          <SessionRow
-            key={s.id}
-            session={s}
-            isLoggedIn={isLoggedIn}
-            hasEligibleMembership={hasEligibleMembership}
-            hasEligibleCredit={hasEligibleCredit}
-            price={service.price}
-            memberPrice={service.memberPrice}
-            onNeedLogin={onNeedLogin}
-            onChanged={onChanged}
-          />
+      </div>
+
+      <div className="mt-5 flex flex-col gap-4">
+        {sessions.length === 0 && (
+          <p className="text-sm text-teal-700">No upcoming sessions in the next 30 days.</p>
+        )}
+        {dayGroups.map(([dayKey, daySessions]) => (
+          <div key={dayKey}>
+            <p className="mb-1.5 text-xs font-semibold tracking-wide text-teal-700/70 uppercase">
+              {formatDateHeading(new Date(dayKey))}
+            </p>
+            <div className="flex flex-col divide-y divide-teal-50">
+              {daySessions.map((s) => (
+                <SessionRow
+                  key={s.id}
+                  session={s}
+                  isLoggedIn={isLoggedIn}
+                  hasEligibleMembership={hasEligibleMembership}
+                  hasEligibleCredit={hasEligibleCredit}
+                  price={service.price}
+                  memberPrice={service.memberPrice}
+                  onNeedLogin={onNeedLogin}
+                  onChanged={() => onChanged(service.id)}
+                />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -226,13 +310,17 @@ function SessionRow({
   const [payingBookingId, setPayingBookingId] = useState<string | null>(null);
 
   const start = new Date(session.startTime);
-  const dateLabel = start.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
   const timeLabel = start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const showPaymentSelector = hasEligibleMembership || hasEligibleCredit;
+
+  const spotsBadge =
+    session.spotsLeft == null ? null : session.spotsLeft <= 0 ? (
+      <Badge variant="danger">Full</Badge>
+    ) : session.spotsLeft <= 2 ? (
+      <Badge variant="warning">{session.spotsLeft} left</Badge>
+    ) : (
+      <Badge variant="success">{session.spotsLeft} spots</Badge>
+    );
 
   async function onBook() {
     if (!isLoggedIn) {
@@ -294,60 +382,45 @@ function SessionRow({
   }
 
   return (
-    <div className="flex flex-col gap-2 py-3">
+    <div className="flex flex-col gap-2 py-2.5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div className="text-sm">
-        <span className="font-medium text-teal-900">{dateLabel}</span>
-        <span className="ml-2 text-teal-700">{timeLabel}</span>
-        {session.spotsLeft != null && (
-          <span className="ml-2 text-xs text-teal-700/70">
-            {session.spotsLeft > 0
-              ? `${session.spotsLeft} spot${session.spotsLeft === 1 ? "" : "s"} left`
-              : "Full"}
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        {message && (
-          <span className={`text-xs ${message.isError ? "text-red-600" : "text-green-700"}`}>
-            {message.text}
-          </span>
-        )}
-        {isFull ? (
-          <button
-            onClick={onJoinWaitlist}
-            disabled={submitting}
-            className="rounded-md border border-teal-500 px-3 py-1.5 text-xs font-medium text-teal-700 transition hover:bg-teal-50 disabled:opacity-60"
-          >
-            {submitting ? "..." : "Join Waitlist"}
-          </button>
-        ) : (
-          <>
-            {showPaymentSelector && isLoggedIn && (
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as BookingPaymentMethod)}
-                className="rounded-md border border-teal-300 px-2 py-1.5 text-xs text-teal-900"
-              >
-                <option value="FULL_PRICE">Pay full price</option>
-                {hasEligibleMembership && (
-                  <option value="MEMBERSHIP">
-                    Use membership{memberPrice ? ` ($${memberPrice})` : ""}
-                  </option>
-                )}
-                {hasEligibleCredit && <option value="CREDIT">Use 1 credit</option>}
-              </select>
-            )}
-            <button
-              onClick={onBook}
-              disabled={submitting}
-              className="rounded-md bg-gold-500 px-3 py-1.5 text-xs font-medium text-teal-900 transition hover:bg-gold-700 disabled:opacity-60"
-            >
-              {submitting ? "..." : "Book"}
-            </button>
-          </>
-        )}
-      </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="font-medium text-teal-900">{timeLabel}</span>
+          {spotsBadge}
+        </div>
+        <div className="flex items-center gap-2">
+          {message && (
+            <span className={`text-xs ${message.isError ? "text-red-600" : "text-green-700"}`}>
+              {message.text}
+            </span>
+          )}
+          {isFull ? (
+            <Button variant="secondary" className="!px-3 !py-1.5 text-xs" onClick={onJoinWaitlist} disabled={submitting}>
+              {submitting ? "..." : "Join Waitlist"}
+            </Button>
+          ) : (
+            <>
+              {showPaymentSelector && isLoggedIn && (
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as BookingPaymentMethod)}
+                  className="rounded-md border border-teal-300 px-2 py-1.5 text-xs text-teal-900"
+                >
+                  <option value="FULL_PRICE">Pay full price</option>
+                  {hasEligibleMembership && (
+                    <option value="MEMBERSHIP">
+                      Use membership{memberPrice ? ` ($${memberPrice})` : ""}
+                    </option>
+                  )}
+                  {hasEligibleCredit && <option value="CREDIT">Use 1 credit</option>}
+                </select>
+              )}
+              <Button className="!px-3 !py-1.5 text-xs" onClick={onBook} disabled={submitting}>
+                {submitting ? "..." : "Book"}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {payingBookingId && (

@@ -611,6 +611,51 @@ actually got built, since implementations may diverge slightly from the prompt).
     rejected it; that was the test's step order being unrealistic, not a product bug.
   - **Final result: 27/27 checks pass**, all 3 scenarios green, run against the live dev
     database — this is spec §25 satisfied end-to-end, not just individually-verified pieces.
+- **`apps/web` (golfer-facing) design pass** — direct follow-up to feedback that the public
+  booking pages still looked like a plain internal tool rather than a real consumer product,
+  even after the admin app's redesign. Audited with real Playwright screenshots first (the same
+  methodology used for every prior design pass), which showed the home page as a flat text list,
+  the location page as one long undifferentiated row-list of sessions, mixing classes and
+  appointments together with no visual grouping.
+  - **New shared components** (`apps/web/src/components/`): `Button`, `Badge`, `LocationCard`
+    (gradient cover banner + initials, reusing the exact same 3-gradient set and pattern as
+    `apps/admin`'s location cards, so the two apps read as one product), and a small `icons.tsx`
+    set (pin, clock, users, flag, calendar, arrow) replacing plain text labels. Added the same
+    `animate-fade-in` / `animate-fade-in-up` / `animate-scale-in` utilities (with a
+    `prefers-reduced-motion` override) to `globals.css` that `apps/admin` already had, so entrance
+    animation is consistent across both apps rather than admin-only.
+  - **Home page**: real hero section (dark gradient, subtle dot pattern, staggered fade-in
+    heading/subhead) instead of a plain white banner; a skeleton-loading grid instead of a bare
+    "Loading..." string; location cards now use `LocationCard` (gradient cover, initials, pin icon
+    for address, arrow-in link) instead of plain bordered boxes.
+  - **Location detail page — the main ask**: services are now split into **Classes** and
+    **Appointments** sections (flag/clock icons), matching the same split `apps/admin` already
+    has — reinforcing that the public site and the CRM are the same product, not two disconnected
+    things. Each service card gets a colored left-border accent (teal for classes, gold for
+    appointments), price/duration shown as small pill chips instead of a plain text line, and —
+    the single biggest usability change — **sessions are now grouped by day** ("Today" /
+    "Tomorrow" / weekday, reusing the exact date-heading logic from `apps/admin`'s schedule page)
+    instead of one long flat list of every slot for the next 30 days. Spots-left is now a colored
+    `Badge` (green when plenty, amber at ≤2, red when full) instead of small gray text, so
+    scarcity is visible at a glance. All existing booking logic (payment-method selector, waitlist
+    fallback, the `StripePaymentPanel` integration from Phase 6) was preserved exactly — only the
+    surrounding markup changed.
+  - **Bookings page**: same card/badge treatment (status badges instead of plain text, icon-led
+    date/location lines, staggered entrance) for Upcoming/Waitlist/History, for visual consistency
+    with the location page.
+  - **Verified for real, not just visually**: a full Playwright click-through confirmed booking
+    still works end to end (including the existing Phase 6 Stripe-not-configured fallback notice
+    rendering correctly in the new layout) and RBAC/business messages (e.g. "You already have a
+    booking for this session") still surface correctly; checked at a 390px mobile viewport and
+    confirmed no horizontal scroll — caught and fixed one real regression along the way (the
+    header nav wrapped to two lines at phone width) before calling it done.
+  - **Known follow-up, not done this round**: the membership/credit-package page and the
+    login/register/account pages weren't touched — they were not the pages named in the request
+    and were already reasonably presentable from an earlier phase; a future pass could bring them
+    to the same visual bar. The dev database currently has several leftover test/UAT locations
+    (`"Aus"`, `"New"`, several `"UAT Location ..."` entries) cluttering the home page grid in any
+    screenshot/demo — worth deleting before a real demo, flagged rather than silently cleaned up
+    without being asked.
 
 ---
 

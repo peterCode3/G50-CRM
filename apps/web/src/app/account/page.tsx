@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError, type AuthenticatedUser } from "@/lib/api";
+import { Button } from "@/components/Button";
+import { Spinner } from "@/components/Spinner";
+import { Badge } from "@/components/Badge";
+import { LogoutIcon } from "@/components/icons";
 
 export default function AccountPage() {
   const router = useRouter();
@@ -45,7 +49,7 @@ export default function AccountPage() {
   if (loading) {
     return (
       <main className="flex flex-1 items-center justify-center bg-teal-50/40 px-6 py-16 text-teal-700">
-        Loading...
+        <Spinner className="h-6 w-6" />
       </main>
     );
   }
@@ -58,9 +62,9 @@ export default function AccountPage() {
 
   return (
     <main className="flex flex-1 items-center justify-center bg-teal-50/40 px-6 py-16">
-      <div className="w-full max-w-sm rounded-xl border border-teal-100 bg-white p-8 shadow-sm">
+      <div className="animate-scale-in w-full max-w-sm rounded-2xl border border-teal-100 bg-white p-8 shadow-lg">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gold-100 text-xl font-semibold text-teal-900">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-700 text-2xl font-semibold text-teal-900 shadow-sm">
             {initial}
           </div>
           <div>
@@ -71,24 +75,20 @@ export default function AccountPage() {
           </div>
         </div>
 
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-md bg-teal-50/40 px-4 py-3 text-sm">
-          <dt className="text-teal-700">Account type</dt>
-          <dd className="font-medium text-teal-900">{user.globalRole.replace("_", " ")}</dd>
-        </dl>
+        <div className="flex items-center justify-between rounded-md bg-teal-50/40 px-4 py-3 text-sm">
+          <span className="text-teal-700">Account type</span>
+          <Badge variant="gold">{user.globalRole.replace("_", " ")}</Badge>
+        </div>
 
-        <button
+        <Button
+          variant="secondary"
           onClick={onLogout}
           disabled={loggingOut}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-md border border-teal-300 px-4 py-2.5 text-sm font-medium text-teal-700 transition hover:bg-teal-50 disabled:opacity-60"
+          className="mt-6 flex w-full items-center justify-center gap-2"
         >
-          {loggingOut && (
-            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-            </svg>
-          )}
+          {loggingOut ? <Spinner /> : <LogoutIcon className="h-4 w-4" />}
           {loggingOut ? "Logging out..." : "Log out"}
-        </button>
+        </Button>
       </div>
     </main>
   );

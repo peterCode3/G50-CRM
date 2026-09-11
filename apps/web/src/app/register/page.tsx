@@ -4,6 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch, ApiError } from "@/lib/api";
+import { AuthLayout } from "@/components/AuthLayout";
+import { TextField } from "@/components/TextField";
+import { Button } from "@/components/Button";
+import { Spinner } from "@/components/Spinner";
+import { MailIcon, LockIcon, UserIcon } from "@/components/icons";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -31,12 +36,12 @@ export default function RegisterPage() {
     }
   }
 
-  const inputClass =
-    "rounded-md border border-teal-300 px-3 py-2 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
-
   return (
-    <main className="flex flex-1 items-center justify-center bg-teal-50/40 px-6 py-16">
-      <div className="w-full max-w-sm rounded-xl border border-teal-100 bg-white p-8 shadow-sm">
+    <AuthLayout
+      tagline="Join the club."
+      subtext="Create your G50.Golf account to book classes, appointments and coaching near you."
+    >
+      <div className="animate-scale-in w-full max-w-sm rounded-2xl border border-teal-100 bg-white p-8 shadow-lg">
         <div className="mb-6 text-center">
           <h1 className="text-xl font-semibold text-teal-900">Create your account</h1>
           <p className="mt-1 text-sm text-teal-700">
@@ -45,63 +50,49 @@ export default function RegisterPage() {
         </div>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex gap-3">
-            <label className="flex w-1/2 flex-col gap-1.5 text-sm">
-              <span className="font-medium text-teal-900">First name</span>
-              <input
-                required
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className={inputClass}
-              />
-            </label>
-            <label className="flex w-1/2 flex-col gap-1.5 text-sm">
-              <span className="font-medium text-teal-900">Last name</span>
-              <input
-                required
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className={inputClass}
-              />
-            </label>
+            <TextField
+              label="First name"
+              required
+              className="w-1/2"
+              icon={<UserIcon className="h-4 w-4" />}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+            />
+            <TextField
+              label="Last name"
+              required
+              className="w-1/2"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+            />
           </div>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-teal-900">Email</span>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-teal-900">Password</span>
-            <input
-              required
-              type="password"
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={inputClass}
-            />
-            <span className="text-xs text-teal-700/70">At least 8 characters.</span>
-          </label>
+          <TextField
+            label="Email"
+            type="email"
+            required
+            icon={<MailIcon className="h-4 w-4" />}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <TextField
+            label="Password"
+            type="password"
+            required
+            minLength={8}
+            hint="At least 8 characters."
+            icon={<LockIcon className="h-4 w-4" />}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
           {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+            <p className="animate-fade-in rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+              {error}
+            </p>
           )}
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-1 flex items-center justify-center gap-2 rounded-md bg-gold-500 px-4 py-2.5 text-sm font-medium text-teal-900 transition hover:bg-gold-700 disabled:opacity-60"
-          >
-            {loading && (
-              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-            )}
+          <Button type="submit" disabled={loading} className="mt-1 flex items-center justify-center gap-2 !py-2.5">
+            {loading && <Spinner />}
             {loading ? "Creating account..." : "Create account"}
-          </button>
+          </Button>
         </form>
         <p className="mt-6 text-center text-sm text-teal-700">
           Already have an account?{" "}
@@ -110,6 +101,6 @@ export default function RegisterPage() {
           </Link>
         </p>
       </div>
-    </main>
+    </AuthLayout>
   );
 }

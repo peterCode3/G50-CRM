@@ -656,6 +656,20 @@ actually got built, since implementations may diverge slightly from the prompt).
     (`"Aus"`, `"New"`, several `"UAT Location ..."` entries) cluttering the home page grid in any
     screenshot/demo — worth deleting before a real demo, flagged rather than silently cleaned up
     without being asked.
+- **`apps/web` auth pages redesign** — direct follow-up: login/register still looked like a plain
+  boilerplate form with no animation, unlike the rest of the redesigned public site.
+  - New shared components: `AuthLayout` (a split-screen layout — dark gradient brand panel with
+    the dot pattern from the home hero, logo, and an animated tagline on the left; the form on the
+    right; collapses to just the form below the `lg` breakpoint), `TextField` (icon-prefixed
+    input), `Spinner`. Added `MailIcon`/`LockIcon`/`UserIcon`/`LogoutIcon` to `icons.tsx`.
+  - Login, register, and the account page all rewritten on top of these — `animate-scale-in` on
+    the card itself, `animate-fade-in-up` on the brand panel's tagline, icons inside the email/
+    password/name fields instead of bare inputs, and the shared `Button`/`Spinner` components
+    instead of one-off inline buttons.
+  - **Verified with a real click-through**, not just a static screenshot: logged in through the
+    redesigned form and confirmed it correctly lands on the (also redesigned) account page with
+    the right user data; checked at 390px mobile width and confirmed the split panel correctly
+    collapses to a single centered card with no horizontal scroll.
 
 ---
 

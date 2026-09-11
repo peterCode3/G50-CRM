@@ -583,31 +583,40 @@ actually got built, since implementations may diverge slightly from the prompt).
     trigger above falls back to a structured log line instead, by design) and the `@Cron` tick
     actually firing on the hour (standard `@nestjs/schedule` behavior, not re-tested beyond
     confirming the module boots without error and the underlying query is correct).
-
----
-
-## 🔲 Remaining — in build order
-
-Each phase below is meant to be handed to Claude as its own prompt, one at a time, so the work
-stays reviewable in chunks instead of one giant change.
-
-### Phase 9 — Acceptance Testing
-
-**Flow:** prove the 3 end-to-end scenarios required before V1 is considered complete (spec §25).
-
-**Prompt:**
-> Write end-to-end tests (or a manual UAT script) covering the 3 acceptance scenarios from the
-> spec: (1) the full HQ → Location Admin → coach → golfer booking loop through to
-> attendance/payment/reporting; (2) a full class accepts a waitlist entry, and a cancellation
-> correctly promotes it; (3) the same golfer and coach accounts operate correctly across two
-> different locations without duplication.
+- **Phase 9 — Acceptance Testing** — a real, runnable UAT script
+  (`scripts/uat/run-acceptance-tests.mjs`, `pnpm uat`) covering all 3 of spec §25's end-to-end
+  scenarios against a **live** api + real Postgres — deliberately not mocks/an isolated test
+  module, since the platform's actual guarantees (capacity-safe booking, coach double-booking
+  prevention, cross-location account reuse) only mean something under a real database with real
+  transactions, the same standard every prior phase in this build was held to.
+  - **What it does**: creates a fresh location, template, service, Location Admin, coach, and
+    golfer through the real API (unique per run via a timestamp, so it's safe to re-run against
+    the same dev database without colliding with existing data), then drives all 3 scenarios:
+    (1) the full HQ → Location Admin → coach → golfer loop through booking → payment-intent →
+    attendance → reporting; (2) a capacity-1 session, a second golfer blocked and waitlisted, a
+    cancellation promoting and letting them claim the spot; (3) reusing the *same* coach and
+    golfer accounts at a second location, confirming one user id shows both location roles (not a
+    duplicate account), that coach double-booking prevention holds *across* locations (an
+    overlapping session for the same coach at location 2 still 409s), and that the golfer's
+    bookings at both locations show up under one account.
+  - **First run caught two real bugs in the script itself, not the product** — `POST /staff`
+    returns the created/linked user as `{ id, ... }`, not `{ userId, ... }`; the script's
+    corresponding checks used `.userId`, which meant the coach was never actually attached to the
+    scheduled session (`coachId` silently omitted from the request body, since
+    `JSON.stringify` drops `undefined` values) and one assertion was comparing `undefined ===
+    undefined` — a false pass. Fixed by using `.id`, which is exactly the kind of bug this UAT
+    pass exists to catch. Also reordered scenario 1 to request payment right after booking
+    (while it's still `CONFIRMED`) rather than after attendance — marking attendance first
+    correctly flips the booking to `COMPLETED` per Phase 7, so the payment endpoint correctly
+    rejected it; that was the test's step order being unrealistic, not a product bug.
+  - **Final result: 27/27 checks pass**, all 3 scenarios green, run against the live dev
+    database — this is spec §25 satisfied end-to-end, not just individually-verified pieces.
 
 ---
 
 ## How to use this doc
 
-1. Pick the next unchecked phase.
-2. Paste its prompt into a message to Claude (add any specifics — e.g. "use Resend, my API key
-   is in `.env` as `RESEND_API_KEY`" — if it matters).
-3. Once it's working and you're happy with it, move that phase up into **Done** with a short
-   note on what was actually built, and cross it out below or delete the entry.
+1. All 9 phases from the original roadmap are done — see the Done section above. Re-run
+   `pnpm uat` any time after further changes to confirm the 3 acceptance scenarios still pass.
+2. For new work, add a new phase entry below following the same pattern (Flow + Prompt), then
+   move it into **Done** once built and verified, with a note on what was actually built.

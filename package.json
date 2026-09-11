@@ -10,7 +10,8 @@
     "db:generate": "pnpm --filter @g50golf/db generate",
     "db:migrate": "pnpm --filter @g50golf/db migrate",
     "db:studio": "pnpm --filter @g50golf/db studio",
-    "db:seed": "pnpm --filter @g50golf/db seed"
+    "db:seed": "pnpm --filter @g50golf/db seed",
+    "uat": "node scripts/uat/run-acceptance-tests.mjs"
   },
   "devDependencies": {
     "turbo": "^2.5.0"

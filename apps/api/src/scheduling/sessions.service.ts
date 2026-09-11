@@ -106,6 +106,7 @@ export class SessionsService {
       },
       include: {
         _count: { select: { bookings: { where: { status: 'CONFIRMED' } } } },
+        coach: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: { startTime: 'asc' },
     });

@@ -25,12 +25,14 @@ export interface SessionWithAvailability {
   id: string;
   serviceId: string;
   locationId: string;
+  coachId: string | null;
   startTime: string;
   endTime: string;
   capacity: number | null;
   bookedCount: number;
   spotsLeft: number | null;
   isCancelled: boolean;
+  coach: { id: string; firstName: string; lastName: string } | null;
 }
 
 export interface Booking {

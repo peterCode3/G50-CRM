@@ -713,11 +713,40 @@ actually got built, since implementations may diverge slightly from the prompt).
     checkout modal renders with the correct summary and purchase-option cards, clicked "Complete
     booking", and confirmed the success message plus the Stripe fallback notice both render
     correctly inside the modal.
-  - **Still to come**: the catalog+schedule two-column layout and a modal-based "Book an
-    appointment" flow with a staff-member picker and a real month calendar (the reference's other
-    two screenshots) — the current day-grouped list is being kept as the entry point into this
-    checkout modal for now rather than replaced outright, since it's already a working, recently-
-    verified browsing experience.
+- **WellnessLiving-style catalog + schedule layout, and the "Book an appointment" calendar modal
+  (parts 3 & 4 — completes the booking-flow overhaul)** — the location page is now a two-column
+  layout matching the reference's structure exactly, with a real interactive calendar closing the
+  gap identified in part 2's "still to come" note.
+  - **API**: `GET /services/:id/sessions` now includes `coach: {id, firstName, lastName}` per
+    session (previously only `coachId`) — needed for the new staff picker and for showing "who's
+    running this" in the schedule list. Purely additive, no existing consumer broken.
+  - **Left column — searchable service catalog**: services grouped by `category` (falling back to
+    Classes/Appointments when a service has none), a live search box filtering by name, each
+    service a compact clickable row (icon, name, price/duration, chevron) — no times shown here by
+    design, matching the reference; clicking a row opens the new `BookingModal`.
+  - **Right column — unified schedule**: every service's upcoming sessions merged into one
+    chronological list, grouped by day, each row showing service name, time, duration, and the
+    assigned coach's first name when there is one. "Book now" opens `CheckoutModal` directly (the
+    time is already chosen); a full session shows "Join Waitlist" instead, calling the existing
+    waitlist endpoint inline with no modal needed for that path.
+  - **New `BookingModal`** — the reference's calendar-driven flow: a service banner (gradient +
+    type icon, no real per-service images exist), price/duration/location/description, a staff
+    member dropdown (built from the distinct coaches actually assigned to that service's upcoming
+    sessions), and a genuine hand-rolled month calendar (prev/next month, weekday header, past and
+    session-less days disabled, days with availability dot-marked, selected day highlighted) —
+    entirely computed client-side from the sessions already fetched for that service, no new
+    calendar library or backend endpoint needed. Picking a date shows that day's time slots as
+    pill buttons (filtered to the selected staff member, if any); picking a time closes this modal
+    and opens `CheckoutModal` for that exact session — the same checkout used by the schedule
+    column's direct "Book now", so there's exactly one booking-confirmation code path regardless
+    of entry point.
+  - **Verified with full Playwright click-throughs** (a fresh account, to get a clean signal
+    rather than dev data already booked by earlier test runs): catalog search filters correctly;
+    clicking a service opens the calendar modal; the calendar correctly disables past/unavailable
+    days and dot-marks available ones; selecting a date and time opens checkout with the right
+    service/date/time; completing the booking succeeds; the schedule column's direct "Book now"
+    also opens checkout correctly. Also checked at 390px mobile width — the two columns stack
+    cleanly with no horizontal scroll.
 
 ---
 

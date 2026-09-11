@@ -115,6 +115,7 @@ export default function LocationDetailPage() {
                   <th className="py-2 pr-4">Duration</th>
                   <th className="py-2 pr-4">Capacity</th>
                   <th className="py-2 pr-4">Price</th>
+                  <th className="py-2 pr-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-teal-50">
@@ -129,6 +130,13 @@ export default function LocationDetailPage() {
                     <td className="py-2.5 pr-4 text-teal-700">
                       ${svc.price}
                       {svc.memberPrice ? ` / $${svc.memberPrice} member` : ""}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right">
+                      <Link href={`/locations/${id}/services/${svc.id}/schedule`}>
+                        <Button variant="ghost" className="!px-2 !py-1 text-xs">
+                          Schedule →
+                        </Button>
+                      </Link>
                     </td>
                   </tr>
                 ))}

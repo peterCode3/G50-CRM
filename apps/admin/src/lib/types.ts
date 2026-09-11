@@ -56,6 +56,19 @@ export interface MySession {
   location: Location;
 }
 
+export interface Session {
+  id: string;
+  serviceId: string;
+  locationId: string;
+  coachId: string | null;
+  startTime: string;
+  endTime: string;
+  capacity: number | null;
+  bookedCount: number;
+  spotsLeft: number | null;
+  isCancelled: boolean;
+}
+
 export interface MembershipPlan {
   id: string;
   locationId: string | null;

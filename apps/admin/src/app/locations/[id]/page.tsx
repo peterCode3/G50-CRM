@@ -216,41 +216,80 @@ export default function LocationDetailPage() {
           )}
         </Card>
 
-        <Card title="HQ Service Templates — activate at this location">
-          {templates === null && <p className="text-sm text-teal-700">Loading templates...</p>}
-          {templates?.length === 0 && (
+        {templates === null && (
+          <Card title="HQ Service Templates">
+            <p className="text-sm text-teal-700">Loading templates...</p>
+          </Card>
+        )}
+        {templates?.length === 0 && (
+          <Card title="HQ Service Templates">
             <p className="text-sm text-teal-700">
               No templates available (or you don&apos;t have access).
             </p>
-          )}
-          <ul className="flex flex-col divide-y divide-teal-50">
-            {templates?.map((tpl) => {
-              const alreadyActive = activeServiceTemplateIds.has(tpl.id);
-              return (
-                <li key={tpl.id} className="flex items-center justify-between py-3">
-                  <div className="text-sm">
-                    <span className="font-medium text-teal-900">{tpl.name}</span>
-                    <span className="ml-2 text-teal-700">
-                      {tpl.type} · {tpl.defaultDurationMinutes}min · ${tpl.defaultPrice}
-                    </span>
-                  </div>
-                  <Button
-                    variant={alreadyActive ? "secondary" : "primary"}
-                    disabled={alreadyActive}
-                    onClick={() => onActivateTemplate(tpl.id)}
-                    className="text-xs"
-                  >
-                    {alreadyActive ? "Activated" : "Activate"}
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
+          </Card>
+        )}
+        {templates && templates.length > 0 && (
+          <>
+            <TemplateActivationCard
+              title="Classes — activate at this location"
+              templates={templates.filter((t) => t.type === "CLASS")}
+              activeIds={activeServiceTemplateIds}
+              onActivate={onActivateTemplate}
+            />
+            <TemplateActivationCard
+              title="Appointments — activate at this location"
+              templates={templates.filter((t) => t.type === "APPOINTMENT")}
+              activeIds={activeServiceTemplateIds}
+              onActivate={onActivateTemplate}
+            />
+          </>
+        )}
 
         <StaffSection locationId={id} staff={staff} onChanged={loadAll} />
       </div>
     </>
+  );
+}
+
+function TemplateActivationCard({
+  title,
+  templates,
+  activeIds,
+  onActivate,
+}: {
+  title: string;
+  templates: ServiceTemplate[];
+  activeIds: Set<string | null>;
+  onActivate: (templateId: string) => void;
+}) {
+  if (templates.length === 0) return null;
+
+  return (
+    <Card title={title}>
+      <ul className="flex flex-col divide-y divide-teal-50">
+        {templates.map((tpl) => {
+          const alreadyActive = activeIds.has(tpl.id);
+          return (
+            <li key={tpl.id} className="flex items-center justify-between py-3">
+              <div className="text-sm">
+                <span className="font-medium text-teal-900">{tpl.name}</span>
+                <span className="ml-2 text-teal-700">
+                  {tpl.defaultDurationMinutes}min · ${tpl.defaultPrice}
+                </span>
+              </div>
+              <Button
+                variant={alreadyActive ? "secondary" : "primary"}
+                disabled={alreadyActive}
+                onClick={() => onActivate(tpl.id)}
+                className="text-xs"
+              >
+                {alreadyActive ? "Activated" : "Activate"}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }
 

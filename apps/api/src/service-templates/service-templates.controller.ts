@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { GlobalRole, LocationRole } from '@g50golf/db';
 import { Roles } from '../auth/roles.decorator.js';
 import { ServiceTemplatesService } from './service-templates.service.js';
@@ -36,5 +36,11 @@ export class ServiceTemplatesController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateServiceTemplateDto) {
     return this.service.update(id, dto);
+  }
+
+  @Roles(GlobalRole.HQ_ADMIN)
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.service.remove(id);
   }
 }

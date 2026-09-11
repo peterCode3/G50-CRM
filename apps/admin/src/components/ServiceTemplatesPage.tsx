@@ -1,47 +1,79 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { ServiceTemplate } from "@/lib/types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { PageHeader } from "@/components/PageHeader";
-import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
+import { DropdownMenu } from "@/components/DropdownMenu";
 
 const inputClass =
   "rounded-md border border-teal-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
 
-export default function TemplatesPage() {
+function pluralize(word: string): string {
+  const lower = word.toLowerCase();
+  return /[sxz]$|[cs]h$/.test(lower) ? `${lower}es` : `${lower}s`;
+}
+
+interface Props {
+  type: "CLASS" | "APPOINTMENT";
+  title: string;
+  singular: string;
+}
+
+export function ServiceTemplatesPage({ type, title, singular }: Props) {
   const { user, loading: userLoading } = useCurrentUser();
   const [templates, setTemplates] = useState<ServiceTemplate[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ServiceTemplate | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const [name, setName] = useState("");
-  const [type, setType] = useState<"CLASS" | "APPOINTMENT">("CLASS");
   const [duration, setDuration] = useState("60");
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
   const [memberPrice, setMemberPrice] = useState("");
+  const [description, setDescription] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    loadTemplates().catch(() => setLoadError("Couldn't load templates — please refresh."));
+    load().catch(() => setLoadError("Couldn't load — please refresh."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  async function loadTemplates() {
-    setTemplates(await apiFetch<ServiceTemplate[]>("/service-templates"));
+  async function load() {
+    const all = await apiFetch<ServiceTemplate[]>("/service-templates");
+    setTemplates(all.filter((t) => t.type === type));
+  }
+
+  const filtered = useMemo(() => {
+    if (!templates) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return templates;
+    return templates.filter((t) => t.name.toLowerCase().includes(q));
+  }, [templates, search]);
+
+  function resetCreateForm() {
+    setName("");
+    setDuration("60");
+    setCapacity("");
+    setPrice("");
+    setMemberPrice("");
+    setDescription("");
+    setCreateError(null);
   }
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    setCreateError(null);
     setSubmitting(true);
     try {
       await apiFetch("/service-templates", {
@@ -49,22 +81,39 @@ export default function TemplatesPage() {
         body: JSON.stringify({
           name,
           type,
+          description: description || undefined,
           defaultDurationMinutes: Number(duration),
-          defaultCapacity: capacity ? Number(capacity) : undefined,
+          defaultCapacity: type === "CLASS" && capacity ? Number(capacity) : undefined,
           defaultPrice: Number(price),
           defaultMemberPrice: memberPrice ? Number(memberPrice) : undefined,
         }),
       });
-      setName("");
-      setCapacity("");
-      setPrice("");
-      setMemberPrice("");
+      resetCreateForm();
       setShowForm(false);
-      await loadTemplates();
+      await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong");
+      setCreateError(err instanceof ApiError ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function onToggleActive(tpl: ServiceTemplate) {
+    setActionError(null);
+    await apiFetch(`/service-templates/${tpl.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive: !tpl.isActive }),
+    });
+    await load();
+  }
+
+  async function onDelete(tpl: ServiceTemplate) {
+    setActionError(null);
+    try {
+      await apiFetch(`/service-templates/${tpl.id}`, { method: "DELETE" });
+      await load();
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Couldn't delete this item.");
     }
   }
 
@@ -81,10 +130,8 @@ export default function TemplatesPage() {
   if (user?.globalRole !== "HQ_ADMIN") {
     return (
       <>
-        <PageHeader title="HQ Service Templates" />
-        <div className="p-8 text-sm text-teal-700">
-          HQ Service Templates are managed by HQ Admin only.
-        </div>
+        <PageHeader title={title} />
+        <div className="p-8 text-sm text-teal-700">Managed by HQ Admin only.</div>
       </>
     );
   }
@@ -92,16 +139,16 @@ export default function TemplatesPage() {
   return (
     <>
       <PageHeader
-        title="HQ Service Templates"
-        description={`${templates.length} template${templates.length === 1 ? "" : "s"} — master catalog locations activate from`}
-        action={<Button onClick={() => setShowForm(true)}>+ New Template</Button>}
+        title={title}
+        description={`${templates.length} ${templates.length === 1 ? singular.toLowerCase() : pluralize(singular)} — master catalog locations activate from`}
+        action={<Button onClick={() => setShowForm(true)}>+ Add {singular}</Button>}
       />
 
       <Modal
         open={showForm}
         onClose={() => setShowForm(false)}
-        title="Create a service template"
-        description="HQ-defined classes and appointments locations can activate."
+        title={`Create a ${singular.toLowerCase()}`}
+        description="HQ-defined — locations activate this into their own bookable service."
       >
         <form onSubmit={onCreate} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1.5 text-sm">
@@ -109,24 +156,22 @@ export default function TemplatesPage() {
             <input
               required
               autoFocus
-              placeholder="e.g. G50 Driver Session"
+              placeholder={type === "CLASS" ? "e.g. Bunkers" : "e.g. 1:1 Coaching"}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className={inputClass}
             />
           </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Description</span>
+            <textarea
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className={inputClass}
+            />
+          </label>
           <div className="flex gap-3">
-            <label className="flex flex-1 flex-col gap-1.5 text-sm">
-              <span className="font-medium text-teal-900">Type</span>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as "CLASS" | "APPOINTMENT")}
-                className={inputClass}
-              >
-                <option value="CLASS">Class</option>
-                <option value="APPOINTMENT">Appointment</option>
-              </select>
-            </label>
             <label className="flex flex-1 flex-col gap-1.5 text-sm">
               <span className="font-medium text-teal-900">Duration (min)</span>
               <input
@@ -137,18 +182,19 @@ export default function TemplatesPage() {
                 className={inputClass}
               />
             </label>
+            {type === "CLASS" && (
+              <label className="flex flex-1 flex-col gap-1.5 text-sm">
+                <span className="font-medium text-teal-900">Capacity</span>
+                <input
+                  type="number"
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                  className={inputClass}
+                />
+              </label>
+            )}
           </div>
           <div className="flex gap-3">
-            <label className="flex flex-1 flex-col gap-1.5 text-sm">
-              <span className="font-medium text-teal-900">Capacity</span>
-              <input
-                type="number"
-                placeholder="Classes only"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                className={inputClass}
-              />
-            </label>
             <label className="flex flex-1 flex-col gap-1.5 text-sm">
               <span className="font-medium text-teal-900">Default price</span>
               <input
@@ -170,13 +216,15 @@ export default function TemplatesPage() {
               />
             </label>
           </div>
-          {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+          {createError && (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{createError}</p>
+          )}
           <div className="mt-1 flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? "Creating..." : "Create template"}
+              {submitting ? "Creating..." : `Create ${singular.toLowerCase()}`}
             </Button>
           </div>
         </form>
@@ -184,54 +232,82 @@ export default function TemplatesPage() {
 
       <EditTemplateModal
         template={editingTemplate}
+        type={type}
         onClose={() => setEditingTemplate(null)}
-        onSaved={loadTemplates}
+        onSaved={load}
       />
 
       <div className="flex flex-col gap-6 p-8">
-        <Card className="overflow-hidden !p-0">
-          {templates.length === 0 ? (
-            <p className="p-5 text-sm text-teal-700">No templates yet.</p>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-teal-50 text-xs font-semibold tracking-wide text-teal-700 uppercase">
-                  <th className="px-5 py-3">Name</th>
-                  <th className="px-5 py-3">Type</th>
-                  <th className="px-5 py-3">Duration</th>
-                  <th className="px-5 py-3">Capacity</th>
-                  <th className="px-5 py-3">Price</th>
-                  <th className="px-5 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-teal-50">
-                {templates.map((tpl) => (
-                  <tr key={tpl.id} className="hover:bg-teal-50/40">
-                    <td className="px-5 py-3 font-medium text-teal-900">{tpl.name}</td>
-                    <td className="px-5 py-3">
-                      <Badge variant={tpl.type === "CLASS" ? "neutral" : "gold"}>{tpl.type}</Badge>
-                    </td>
-                    <td className="px-5 py-3 text-teal-700">{tpl.defaultDurationMinutes} min</td>
-                    <td className="px-5 py-3 text-teal-700">{tpl.defaultCapacity ?? "—"}</td>
-                    <td className="px-5 py-3 text-teal-700">
-                      ${tpl.defaultPrice}
-                      {tpl.defaultMemberPrice ? ` / $${tpl.defaultMemberPrice} member` : ""}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        className="!px-2 !py-1 text-xs"
-                        onClick={() => setEditingTemplate(tpl)}
-                      >
-                        Edit
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Card>
+        <input
+          placeholder={`Search ${pluralize(singular)}...`}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className={`max-w-xs ${inputClass}`}
+        />
+
+        {actionError && (
+          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{actionError}</p>
+        )}
+
+        {filtered.length === 0 ? (
+          <p className="text-sm text-teal-700">
+            {templates.length === 0 ? `No ${pluralize(singular)} yet.` : "No matches."}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filtered.map((tpl) => (
+              <div
+                key={tpl.id}
+                className={`flex gap-3 rounded-lg border-l-4 border-teal-100 bg-white p-4 shadow-sm ${
+                  type === "CLASS" ? "border-l-teal-500" : "border-l-gold-500"
+                }`}
+              >
+                <Image
+                  src="/logo.png"
+                  alt=""
+                  width={818}
+                  height={616}
+                  className="h-12 w-12 shrink-0 rounded-md border border-teal-50 bg-teal-900 object-contain p-1"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-1">
+                    <h3 className="truncate text-sm font-semibold text-teal-900">{tpl.name}</h3>
+                    <DropdownMenu
+                      items={[
+                        { label: "Edit", onClick: () => setEditingTemplate(tpl) },
+                        {
+                          label: tpl.isActive ? "Deactivate" : "Activate",
+                          onClick: () => onToggleActive(tpl),
+                        },
+                        { label: "Delete", onClick: () => onDelete(tpl), danger: true },
+                      ]}
+                    />
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-teal-700">
+                    <span>{tpl.defaultDurationMinutes} min</span>
+                    <span>·</span>
+                    <span>${tpl.defaultPrice}</span>
+                    {tpl.defaultMemberPrice && <span>(${tpl.defaultMemberPrice} member)</span>}
+                    {type === "CLASS" && tpl.defaultCapacity && (
+                      <>
+                        <span>·</span>
+                        <span>cap {tpl.defaultCapacity}</span>
+                      </>
+                    )}
+                  </div>
+                  {tpl.description && (
+                    <p className="mt-1.5 line-clamp-2 text-xs text-teal-700/80">{tpl.description}</p>
+                  )}
+                  <div className="mt-2">
+                    <Badge variant={tpl.isActive ? "success" : "danger"}>
+                      {tpl.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );
@@ -239,14 +315,17 @@ export default function TemplatesPage() {
 
 function EditTemplateModal({
   template,
+  type,
   onClose,
   onSaved,
 }: {
   template: ServiceTemplate | null;
+  type: "CLASS" | "APPOINTMENT";
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("");
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
@@ -257,6 +336,7 @@ function EditTemplateModal({
   useEffect(() => {
     if (!template) return;
     setName(template.name);
+    setDescription(template.description ?? "");
     setDuration(String(template.defaultDurationMinutes));
     setCapacity(template.defaultCapacity != null ? String(template.defaultCapacity) : "");
     setPrice(template.defaultPrice);
@@ -276,8 +356,9 @@ function EditTemplateModal({
         method: "PATCH",
         body: JSON.stringify({
           name,
+          description: description || undefined,
           defaultDurationMinutes: Number(duration),
-          defaultCapacity: capacity ? Number(capacity) : undefined,
+          defaultCapacity: type === "CLASS" && capacity ? Number(capacity) : undefined,
           defaultPrice: Number(price),
           defaultMemberPrice: memberPrice ? Number(memberPrice) : undefined,
         }),
@@ -295,8 +376,7 @@ function EditTemplateModal({
     <Modal
       open={!!template}
       onClose={onClose}
-      title="Edit service template"
-      description={template.type === "CLASS" ? "Class" : "Appointment"}
+      title={`Edit ${type === "CLASS" ? "class" : "appointment"}`}
     >
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1.5 text-sm">
@@ -306,6 +386,15 @@ function EditTemplateModal({
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Description</span>
+          <textarea
+            rows={2}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             className={inputClass}
           />
         </label>
@@ -320,16 +409,17 @@ function EditTemplateModal({
               className={inputClass}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1.5 text-sm">
-            <span className="font-medium text-teal-900">Capacity</span>
-            <input
-              type="number"
-              placeholder="Classes only"
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value)}
-              className={inputClass}
-            />
-          </label>
+          {type === "CLASS" && (
+            <label className="flex flex-1 flex-col gap-1.5 text-sm">
+              <span className="font-medium text-teal-900">Capacity</span>
+              <input
+                type="number"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+          )}
         </div>
         <div className="flex gap-3">
           <label className="flex flex-1 flex-col gap-1.5 text-sm">

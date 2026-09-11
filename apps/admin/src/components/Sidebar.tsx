@@ -18,7 +18,8 @@ const NAV_ITEMS: {
   { href: "/dashboard", label: "Dashboard", icon: DashboardIcon },
   { href: "/schedule", label: "My Schedule", icon: ScheduleIcon, coachOnly: true },
   { href: "/locations", label: "Locations", icon: LocationIcon, locationAdminOnly: true },
-  { href: "/templates", label: "Service Templates", icon: TemplateIcon, hqOnly: true },
+  { href: "/classes", label: "Classes", icon: TemplateIcon, hqOnly: true },
+  { href: "/appointments", label: "Appointments", icon: AppointmentIcon, hqOnly: true },
   { href: "/memberships", label: "Memberships", icon: MembershipIcon, hqOnly: true },
 ];
 
@@ -180,6 +181,15 @@ function ScheduleIcon({ className }: IconProps) {
     <svg viewBox="0 0 20 20" fill="none" className={className}>
       <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" />
       <path d="M3 8h14M7 2v4M13 2v4" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function AppointmentIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 6.5V10l2.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }

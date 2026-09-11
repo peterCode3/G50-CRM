@@ -369,6 +369,33 @@ actually got built, since implementations may diverge slightly from the prompt).
     all — "Explorer Listing" (their public marketplace/SEO directory), "Integrations" (their app
     marketplace), "Leads" — the user was explicit that they want *our* documented feature set, not
     WellnessLiving's, just at that visual/UX quality bar.
+- **Classes and Appointments split into separate sections** — direct follow-up after the user
+  showed WellnessLiving's actual "Classes" and "Appointments" pages (under their sidebar's
+  Services group) as reference: distinct card grids, a colored left-border accent per card, an
+  image/logo thumbnail, and a "⋮" menu with Edit/Deactivate/Delete, grouped by category. Adapted
+  (not cloned) for what we actually have:
+  - `apps/admin`'s merged `/templates` page (mixing `CLASS` and `APPOINTMENT` templates in one
+    table) is now two sidebar items — **Classes** and **Appointments** — both rendering a shared
+    `ServiceTemplatesPage` component (`apps/admin/src/components/ServiceTemplatesPage.tsx`)
+    parameterized by `type`, so the two pages can't drift apart in behavior. Cards use a teal
+    left-border for Classes, gold for Appointments, the G50 logo mark as a thumbnail (no
+    per-template images exist), and a new `DropdownMenu` component (click-outside-to-close) for
+    the "⋮" actions — Edit, Activate/Deactivate, Delete.
+  - **Added a real, guarded `DELETE /service-templates/:id`** — the reference shows "Delete
+    Class" as a plain menu item, but a template that's already been activated at one or more
+    locations can't just disappear (`Service.templateId` would dangle, and those locations'
+    booking data references it). The endpoint counts activations first and returns 409 with a
+    clear message ("activated at N locations — deactivate instead") rather than deleting; only a
+    never-activated template can actually be removed. Verified both paths with curl: blocked on
+    an activated template, succeeded on a fresh throwaway one.
+  - **Also split the location detail page's template-activation list** the same way — two cards,
+    "Classes — activate at this location" and "Appointments — activate at this location" — instead
+    of one mixed list, via a new `TemplateActivationCard` component, so the split is consistent
+    everywhere a location admin browses the catalog, not just at the HQ level.
+  - **Caught and fixed a real string bug while building this**: naive `${singular.toLowerCase()}s`
+    pluralization produced "Search classs..." (double s) for "Class" → wrong. Added a small
+    `pluralize()` helper (handles the `s`/`x`/`ch`/`sh` → `+es` case) instead of hardcoding `+s`
+    everywhere.
 
 ---
 

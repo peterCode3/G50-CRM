@@ -305,6 +305,37 @@ actually got built, since implementations may diverge slightly from the prompt).
     `UpdateCreditPackageDto` rather than adding separate endpoints). Verified with a real
     browser click-through: created a `JUNIOR` plan through the modal and confirmed it appeared
     correctly in the table with the right access/status.
+- **Admin app audit + fixes** — prompted by user feedback ("admin dashboard doesn't feel
+  complete, UI isn't good, something technical seems missing") plus a WellnessLiving screenshot
+  as a concrete reference point. Did a full visual audit (screenshotted every admin page) rather
+  than guessing, which surfaced one severe functional gap and several polish gaps:
+  - **The severe one**: there was no way to create a bookable session (class time slot or
+    appointment slot) from `apps/admin` at all — confirmed by checking `/schedule` and finding it
+    empty even though sessions existed, because every session in the dev database had been
+    created via direct `curl` calls while testing Phases 3–5. Fixed with a dedicated
+    `/locations/[id]/services/[serviceId]/schedule` page (linked from each activated service):
+    lists upcoming sessions (coach, capacity, booked count, cancel action) plus modals for a
+    one-off session and a recurring weekly schedule (day-of-week toggle buttons, time, date
+    range, optional coach/capacity override) — using the `ServiceSessionsController` API that's
+    existed since Phase 3 but never had a UI. Verified with a real click-through: created a
+    Tue/Thu recurring schedule, confirmed 7 sessions appeared with correct times, cancelled one
+    and confirmed it dropped off the list.
+  - **Visual redesign of Locations + Staff**, matching the reference's card-grid style instead of
+    plain tables: `/locations` is now a responsive card grid — a gradient cover banner (alternates
+    across 3 brand-palette combinations so a grid of cards doesn't read as one flat block), an
+    overlapping avatar-initial circle, an active/inactive status badge, and a search box (no image
+    upload feature exists yet, so covers are a CSS gradient + large translucent initials rather
+    than a real photo — a reasonable stand-in until file upload is built). The location detail
+    page's Staff section is now a card grid too (avatar-initial circle, name, email, role badge)
+    instead of a plain table.
+  - **Still open, not addressed this round** (flagged for a future pass, not silently dropped):
+    no edit action anywhere for an already-created Location/Service/Template (only
+    activate/deactivate); "Bookings" and "Customers" are still grayed-out "Coming Soon" sidebar
+    items despite the booking API existing since Phase 4 — there's still no admin view of who
+    booked what, and no customer list/profile view; the Dashboard still has no revenue or booking
+    stats, only location/template counts and session-count charts. Templates/Memberships pages
+    still use plain tables rather than the new card style — lower priority since they're simpler,
+    lower-volume lists than Locations/Staff.
 
 ---
 

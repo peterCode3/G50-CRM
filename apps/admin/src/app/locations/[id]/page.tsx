@@ -243,28 +243,30 @@ function StaffSection({
         <div className="flex flex-col gap-4">
           {staff === null && <p className="text-sm text-teal-700">Loading staff...</p>}
           {staff && staff.length > 0 && (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-teal-50 text-xs font-semibold tracking-wide text-teal-700 uppercase">
-                  <th className="py-2 pr-4">Name</th>
-                  <th className="py-2 pr-4">Email</th>
-                  <th className="py-2 pr-4">Role</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-teal-50">
-                {staff.map((s) => (
-                  <tr key={`${s.userId}-${s.role}`}>
-                    <td className="py-2.5 pr-4 font-medium text-teal-900">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {staff.map((s) => (
+                <div
+                  key={`${s.userId}-${s.role}`}
+                  className="flex items-center gap-3 rounded-lg border border-teal-50 p-3"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold-100 text-sm font-semibold text-teal-900">
+                    {s.firstName[0]}
+                    {s.lastName[0]}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-teal-900">
                       {s.firstName} {s.lastName}
-                    </td>
-                    <td className="py-2.5 pr-4 text-teal-700">{s.email}</td>
-                    <td className="py-2.5 pr-4">
-                      <Badge variant={s.role === "LOCATION_ADMIN" ? "gold" : "neutral"}>{s.role}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </p>
+                    <p className="truncate text-xs text-teal-700">{s.email}</p>
+                  </div>
+                  <div className="ml-auto shrink-0">
+                    <Badge variant={s.role === "LOCATION_ADMIN" ? "gold" : "neutral"}>
+                      <span className="whitespace-nowrap">{s.role.replace("_", " ")}</span>
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
           {staff?.length === 0 && <p className="text-sm text-teal-700">No staff yet.</p>}
         </div>

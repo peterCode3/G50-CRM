@@ -670,6 +670,31 @@ actually got built, since implementations may diverge slightly from the prompt).
     redesigned form and confirmed it correctly lands on the (also redesigned) account page with
     the right user data; checked at 390px mobile width and confirmed the split panel correctly
     collapses to a single centered card with no horizontal scroll.
+- **WellnessLiving-style profile-completion gate (part 1 of a larger booking-flow overhaul)** —
+  the user's real production site (`g50.golf`) runs on WellnessLiving, and asked for our own
+  booking flow to work the same way, starting with its "Complete profile information" step that
+  appears the first time a customer tries to book. This is the first of several pieces (catalog +
+  schedule layout, a modal-based "Book an appointment" flow with a staff/calendar picker, and a
+  checkout confirmation modal are still to come).
+  - **Schema**: added `dateOfBirth`, `address`, `city`, `postalCode`, `gender`, `referredBy`,
+    `homePhone`, `workPhone` to `User` (migration `add_user_profile_fields`); `phone` and
+    `homeLocationId` already existed.
+  - **API**: `AuthenticatedUser` (the `/auth/me` shape) now carries all profile fields plus a
+    computed `profileComplete` boolean (true once phone/DOB/address/city/postal code/home
+    location are all set — the exact fields WellnessLiving's own gate requires). New
+    `PATCH /auth/me` (any authenticated user, own profile only) updates them.
+  - **Frontend**: new `CompleteProfileModal` matching the reference's structure (required fields
+    up top, an "Additional information" section below for phone/gender/referred-by). Wired into
+    the location detail page via a `requireCompleteProfile(action)` gate: clicking Book or Join
+    Waitlist with an incomplete profile opens the modal instead; submitting it updates
+    `profileComplete` and **automatically resumes the exact action the golfer originally
+    clicked** — they don't have to click Book a second time. A golfer who's already complete never
+    sees the modal at all.
+  - **Verified with a full Playwright click-through**, not just a screenshot: registered a brand
+    new account (guaranteed incomplete), confirmed the modal appears on first Book click, filled
+    and submitted it, confirmed the modal closed **and** the original booking completed
+    automatically (spots count dropped, "Booked!" message shown), then confirmed a second Book
+    click on the same page no longer shows the modal.
 
 ---
 

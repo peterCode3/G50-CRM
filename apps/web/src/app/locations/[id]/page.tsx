@@ -13,6 +13,7 @@ import type {
   UserMembership,
 } from "@/lib/types";
 import { StripePaymentPanel } from "@/components/StripePaymentPanel";
+import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { ClockIcon, FlagIcon, PinIcon } from "@/components/icons";
@@ -49,6 +50,8 @@ export default function LocationDetailPage() {
     Record<string, SessionWithAvailability[]>
   >({});
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [myMemberships, setMyMemberships] = useState<UserMembership[]>([]);
   const [myBalances, setMyBalances] = useState<CreditBalance[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +59,9 @@ export default function LocationDetailPage() {
   useEffect(() => {
     load().catch(() => setError("Couldn't load this location — please refresh."));
     apiFetch<AuthenticatedUser>("/auth/me")
-      .then(() => {
+      .then((me) => {
         setIsLoggedIn(true);
+        setCurrentUser(me);
         return Promise.all([
           apiFetch<UserMembership[]>("/memberships/my"),
           apiFetch<CreditBalance[]>("/credit-balances/my"),
@@ -72,6 +76,17 @@ export default function LocationDetailPage() {
       .catch(() => setIsLoggedIn(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Gate any booking/waitlist action behind a completed profile (matches the
+  // "Complete profile information" step in the reference booking flow) — a
+  // golfer who's already complete never sees the modal at all.
+  function requireCompleteProfile(action: () => void) {
+    if (currentUser && !currentUser.profileComplete) {
+      setPendingAction(() => action);
+    } else {
+      action();
+    }
+  }
 
   async function load() {
     const [loc, svcs] = await Promise.all([
@@ -124,6 +139,7 @@ export default function LocationDetailPage() {
     myMemberships,
     myBalances,
     onNeedLogin: () => router.push("/login"),
+    onRequireProfile: requireCompleteProfile,
     onChanged: refreshSessionsFor,
   };
 
@@ -182,6 +198,19 @@ export default function LocationDetailPage() {
           </div>
         )}
       </section>
+
+      {pendingAction && currentUser && (
+        <CompleteProfileModal
+          user={currentUser}
+          onClose={() => setPendingAction(null)}
+          onComplete={(updated) => {
+            setCurrentUser(updated);
+            const action = pendingAction;
+            setPendingAction(null);
+            action();
+          }}
+        />
+      )}
     </main>
   );
 }
@@ -194,6 +223,7 @@ function ServiceCard({
   myMemberships,
   myBalances,
   onNeedLogin,
+  onRequireProfile,
   onChanged,
 }: {
   service: Service;
@@ -203,6 +233,7 @@ function ServiceCard({
   myMemberships: UserMembership[];
   myBalances: CreditBalance[];
   onNeedLogin: () => void;
+  onRequireProfile: (action: () => void) => void;
   onChanged: (serviceId: string) => void;
 }) {
   const now = new Date();
@@ -273,6 +304,7 @@ function ServiceCard({
                   price={service.price}
                   memberPrice={service.memberPrice}
                   onNeedLogin={onNeedLogin}
+                  onRequireProfile={onRequireProfile}
                   onChanged={() => onChanged(service.id)}
                 />
               ))}
@@ -292,6 +324,7 @@ function SessionRow({
   price,
   memberPrice,
   onNeedLogin,
+  onRequireProfile,
   onChanged,
 }: {
   session: SessionWithAvailability;
@@ -301,6 +334,7 @@ function SessionRow({
   price: string;
   memberPrice: string | null;
   onNeedLogin: () => void;
+  onRequireProfile: (action: () => void) => void;
   onChanged: () => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
@@ -322,11 +356,15 @@ function SessionRow({
       <Badge variant="success">{session.spotsLeft} spots</Badge>
     );
 
-  async function onBook() {
+  function onBook() {
     if (!isLoggedIn) {
       onNeedLogin();
       return;
     }
+    onRequireProfile(performBook);
+  }
+
+  async function performBook() {
     setSubmitting(true);
     setMessage(null);
     try {
@@ -361,11 +399,15 @@ function SessionRow({
     }
   }
 
-  async function onJoinWaitlist() {
+  function onJoinWaitlist() {
     if (!isLoggedIn) {
       onNeedLogin();
       return;
     }
+    onRequireProfile(performJoinWaitlist);
+  }
+
+  async function performJoinWaitlist() {
     setSubmitting(true);
     setMessage(null);
     try {

@@ -1,11 +1,21 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { GlobalRole } from '@g50golf/db';
+import { GlobalRole, type User } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { RegisterDto } from './dto/register.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
+import type { UpdateProfileDto } from './dto/update-profile.dto.js';
 import type { AuthenticatedUser } from './types.js';
+
+const PROFILE_COMPLETE_FIELDS = [
+  'phone',
+  'dateOfBirth',
+  'address',
+  'city',
+  'postalCode',
+  'homeLocationId',
+] as const satisfies readonly (keyof User)[];
 
 const SALT_ROUNDS = 12;
 
@@ -71,12 +81,24 @@ export class AuthService {
     return this.toAuthenticatedUser(user, user.locations);
   }
 
+  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<AuthenticatedUser> {
+    const user = await this.prisma.client.user.update({
+      where: { id: userId },
+      data: {
+        ...dto,
+        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+      },
+      include: { locations: true },
+    });
+    return this.toAuthenticatedUser(user, user.locations);
+  }
+
   signToken(userId: string): string {
     return this.jwt.sign({ sub: userId });
   }
 
   private toAuthenticatedUser(
-    user: { id: string; email: string; firstName: string; lastName: string; globalRole: GlobalRole },
+    user: User,
     locations: { locationId: string; role: string }[],
   ): AuthenticatedUser {
     return {
@@ -89,6 +111,17 @@ export class AuthService {
         locationId: l.locationId,
         role: l.role as AuthenticatedUser['locations'][number]['role'],
       })),
+      phone: user.phone,
+      dateOfBirth: user.dateOfBirth ? user.dateOfBirth.toISOString() : null,
+      address: user.address,
+      city: user.city,
+      postalCode: user.postalCode,
+      homeLocationId: user.homeLocationId,
+      gender: user.gender,
+      referredBy: user.referredBy,
+      homePhone: user.homePhone,
+      workPhone: user.workPhone,
+      profileComplete: PROFILE_COMPLETE_FIELDS.every((field) => user[field] != null),
     };
   }
 }

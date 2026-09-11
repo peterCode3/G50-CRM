@@ -1,8 +1,9 @@
-import { Body, Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { Public } from './public.decorator.js';
 import { CurrentUser } from './current-user.decorator.js';
 import type { AuthenticatedUser } from './types.js';
@@ -48,6 +49,15 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser): AuthenticatedUser {
     return user;
+  }
+
+  // No @Roles() — any authenticated user updates only their own profile.
+  @Patch('me')
+  updateMe(
+    @Body() dto: UpdateProfileDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AuthenticatedUser> {
+    return this.authService.updateProfile(user.id, dto);
   }
 
   private attachToken(res: Response, userId: string): void {

@@ -36,4 +36,15 @@ export interface AuthenticatedUser {
   lastName: string;
   globalRole: "HQ_ADMIN" | "LOCATION_ADMIN" | "COACH" | "CUSTOMER";
   locations: { locationId: string; role: "LOCATION_ADMIN" | "COACH" | "CUSTOMER" }[];
+  phone: string | null;
+  dateOfBirth: string | null;
+  address: string | null;
+  city: string | null;
+  postalCode: string | null;
+  homeLocationId: string | null;
+  gender: string | null;
+  referredBy: string | null;
+  homePhone: string | null;
+  workPhone: string | null;
+  profileComplete: boolean;
 }

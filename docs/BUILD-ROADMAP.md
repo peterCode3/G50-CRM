@@ -695,6 +695,29 @@ actually got built, since implementations may diverge slightly from the prompt).
     and submitted it, confirmed the modal closed **and** the original booking completed
     automatically (spots count dropped, "Booked!" message shown), then confirmed a second Book
     click on the same page no longer shows the modal.
+- **WellnessLiving-style checkout confirmation modal (part 2)** — replaces the old inline
+  payment-method `<select>` + immediate booking with a proper "Review & confirm your booking"
+  step, matching the reference's checkout screenshot.
+  - New `CheckoutModal`: a summary card (service, date/time, location), purchase options
+    rendered as selectable cards (Drop in / Use membership / Use 1 credit — only the ones the
+    golfer actually qualifies for, same eligibility logic as before) instead of a plain dropdown,
+    a subtotal/total summary, and a "Complete booking" button that performs the actual booking
+    call. On success it shows a confirmation message and, if the booking needs payment, the
+    existing `StripePaymentPanel` inline in the same modal (with a "Pay later" fallback button so
+    the modal is never a dead end when payment isn't configured or the golfer wants to defer it).
+  - The old capacity-conflict handling (a 409 "session is full" reroutes to Join Waitlist, but a
+    409 "you already booked this" doesn't) moved into the modal unchanged — verified the same
+    regex-based distinction still works via a `onCapacityConflict` callback that closes the modal
+    and flips the row to the waitlist button.
+  - **Verified with a live click-through**: clicked Book on a real session, confirmed the
+    checkout modal renders with the correct summary and purchase-option cards, clicked "Complete
+    booking", and confirmed the success message plus the Stripe fallback notice both render
+    correctly inside the modal.
+  - **Still to come**: the catalog+schedule two-column layout and a modal-based "Book an
+    appointment" flow with a staff-member picker and a real month calendar (the reference's other
+    two screenshots) — the current day-grouped list is being kept as the entry point into this
+    checkout modal for now rather than replaced outright, since it's already a working, recently-
+    verified browsing experience.
 
 ---
 

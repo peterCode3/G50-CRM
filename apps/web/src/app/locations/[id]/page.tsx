@@ -5,15 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch, ApiError, type AuthenticatedUser } from "@/lib/api";
 import type {
-  BookingPaymentMethod,
   CreditBalance,
   Location,
   Service,
   SessionWithAvailability,
   UserMembership,
 } from "@/lib/types";
-import { StripePaymentPanel } from "@/components/StripePaymentPanel";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
+import { CheckoutModal } from "@/components/CheckoutModal";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { ClockIcon, FlagIcon, PinIcon } from "@/components/icons";
@@ -138,6 +137,7 @@ export default function LocationDetailPage() {
     isLoggedIn,
     myMemberships,
     myBalances,
+    locationName: location.name,
     onNeedLogin: () => router.push("/login"),
     onRequireProfile: requireCompleteProfile,
     onChanged: refreshSessionsFor,
@@ -222,6 +222,7 @@ function ServiceCard({
   isLoggedIn,
   myMemberships,
   myBalances,
+  locationName,
   onNeedLogin,
   onRequireProfile,
   onChanged,
@@ -232,6 +233,7 @@ function ServiceCard({
   isLoggedIn: boolean;
   myMemberships: UserMembership[];
   myBalances: CreditBalance[];
+  locationName: string;
   onNeedLogin: () => void;
   onRequireProfile: (action: () => void) => void;
   onChanged: (serviceId: string) => void;
@@ -298,6 +300,8 @@ function ServiceCard({
                 <SessionRow
                   key={s.id}
                   session={s}
+                  serviceName={service.name}
+                  locationName={locationName}
                   isLoggedIn={isLoggedIn}
                   hasEligibleMembership={hasEligibleMembership}
                   hasEligibleCredit={hasEligibleCredit}
@@ -318,6 +322,8 @@ function ServiceCard({
 
 function SessionRow({
   session,
+  serviceName,
+  locationName,
   isLoggedIn,
   hasEligibleMembership,
   hasEligibleCredit,
@@ -328,6 +334,8 @@ function SessionRow({
   onChanged,
 }: {
   session: SessionWithAvailability;
+  serviceName: string;
+  locationName: string;
   isLoggedIn: boolean;
   hasEligibleMembership: boolean;
   hasEligibleCredit: boolean;
@@ -340,12 +348,10 @@ function SessionRow({
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [isFull, setIsFull] = useState(session.spotsLeft != null && session.spotsLeft <= 0);
-  const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>("FULL_PRICE");
-  const [payingBookingId, setPayingBookingId] = useState<string | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const start = new Date(session.startTime);
   const timeLabel = start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  const showPaymentSelector = hasEligibleMembership || hasEligibleCredit;
 
   const spotsBadge =
     session.spotsLeft == null ? null : session.spotsLeft <= 0 ? (
@@ -361,42 +367,7 @@ function SessionRow({
       onNeedLogin();
       return;
     }
-    onRequireProfile(performBook);
-  }
-
-  async function performBook() {
-    setSubmitting(true);
-    setMessage(null);
-    try {
-      const booking = await apiFetch<{ id: string; priceCharged: string | null }>(
-        `/sessions/${session.id}/bookings`,
-        { method: "POST", body: JSON.stringify({ paymentMethod }) },
-      );
-      setMessage({ text: "Booked! See it in My Bookings.", isError: false });
-      if (paymentMethod === "FULL_PRICE" && booking.priceCharged && Number(booking.priceCharged) > 0) {
-        setPayingBookingId(booking.id);
-      }
-      onChanged();
-    } catch (err) {
-      // A 409 covers two distinct cases from the API: "session is full" (offer
-      // the waitlist) and "you already have a booking here" (a duplicate —
-      // nothing to offer, the golfer is already in). Only the former should
-      // flip the UI to "Join Waitlist"; conflating them misleads a golfer who
-      // simply double-clicked into thinking a session that has room is full.
-      const isCapacityConflict =
-        err instanceof ApiError &&
-        err.status === 409 &&
-        /full|filled up/i.test(err.message);
-      if (isCapacityConflict) {
-        setIsFull(true);
-      }
-      setMessage({
-        text: err instanceof ApiError ? err.message : "Something went wrong",
-        isError: true,
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    onRequireProfile(() => setCheckoutOpen(true));
   }
 
   function onJoinWaitlist() {
@@ -441,37 +412,26 @@ function SessionRow({
               {submitting ? "..." : "Join Waitlist"}
             </Button>
           ) : (
-            <>
-              {showPaymentSelector && isLoggedIn && (
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as BookingPaymentMethod)}
-                  className="rounded-md border border-teal-300 px-3 py-2 text-sm text-teal-900"
-                >
-                  <option value="FULL_PRICE">Pay full price</option>
-                  {hasEligibleMembership && (
-                    <option value="MEMBERSHIP">
-                      Use membership{memberPrice ? ` ($${memberPrice})` : ""}
-                    </option>
-                  )}
-                  {hasEligibleCredit && <option value="CREDIT">Use 1 credit</option>}
-                </select>
-              )}
-              <Button onClick={onBook} disabled={submitting}>
-                {submitting ? "..." : "Book"}
-              </Button>
-            </>
+            <Button onClick={onBook}>Book</Button>
           )}
         </div>
       </div>
 
-      {payingBookingId && (
-        <StripePaymentPanel
-          intentPath={`/payments/bookings/${payingBookingId}/intent`}
-          amountLabel={`$${price}`}
-          onSuccess={() => {
-            setPayingBookingId(null);
-            setMessage({ text: "Payment successful!", isError: false });
+      {checkoutOpen && (
+        <CheckoutModal
+          serviceName={serviceName}
+          locationName={locationName}
+          startTime={session.startTime}
+          price={price}
+          memberPrice={memberPrice}
+          hasEligibleMembership={hasEligibleMembership}
+          hasEligibleCredit={hasEligibleCredit}
+          sessionId={session.id}
+          onClose={() => setCheckoutOpen(false)}
+          onBooked={onChanged}
+          onCapacityConflict={() => {
+            setIsFull(true);
+            setCheckoutOpen(false);
           }}
         />
       )}

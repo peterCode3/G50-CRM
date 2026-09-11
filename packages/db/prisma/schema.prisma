@@ -296,6 +296,7 @@ model UserMembership {
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan     MembershipPlan @relation(fields: [planId], references: [id])
   bookings Booking[]
+  payments Payment[]
 
   @@map("user_memberships")
 }
@@ -329,6 +330,7 @@ model CreditBalance {
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   package      CreditPackage?     @relation(fields: [packageId], references: [id])
   transactions CreditTransaction[]
+  payments     Payment[]
 
   @@map("credit_balances")
 }
@@ -406,20 +408,24 @@ model Attendance {
 // ---------- Payments ----------
 
 model Payment {
-  id          String         @id @default(cuid())
-  userId      String
-  bookingId   String?
-  amount      Decimal        @db.Decimal(10, 2)
-  currency    String         @default("AUD")
-  status      PaymentStatus  @default(PENDING)
-  purpose     PaymentPurpose
-  provider    String
-  providerRef String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id               String         @id @default(cuid())
+  userId           String
+  bookingId        String?
+  userMembershipId String?
+  creditBalanceId  String?
+  amount           Decimal        @db.Decimal(10, 2)
+  currency         String         @default("AUD")
+  status           PaymentStatus  @default(PENDING)
+  purpose          PaymentPurpose
+  provider         String
+  providerRef      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
-  user    User     @relation(fields: [userId], references: [id])
-  booking Booking? @relation(fields: [bookingId], references: [id])
+  user           User            @relation(fields: [userId], references: [id])
+  booking        Booking?        @relation(fields: [bookingId], references: [id])
+  userMembership UserMembership? @relation(fields: [userMembershipId], references: [id])
+  creditBalance  CreditBalance?  @relation(fields: [creditBalanceId], references: [id])
 
   @@map("payments")
 }

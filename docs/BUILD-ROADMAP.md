@@ -493,28 +493,64 @@ actually got built, since implementations may diverge slightly from the prompt).
     charged today but won't reflect refunds/failed charges once Stripe exists. Membership/credit
     package *sales* revenue isn't broken out separately from booking revenue yet.
 
+- **Phase 6 — Payments (Stripe)** — real Payment Intents wired end-to-end; verified with curl
+  (ownership/status/RBAC edge cases, a clean Stripe auth error confirming the whole plumbing
+  works up to the point where real API keys are needed) and a live Playwright click-through of
+  both the booking and package-purchase flows.
+  - **Schema**: added `userMembershipId`/`creditBalanceId` (both optional) to `Payment`, alongside
+    the existing `bookingId` — a `Payment` now links to whichever of the three things it's paying
+    for (migration `add_payment_links`).
+  - **API** (`apps/api/src/payments/`): `POST /payments/bookings/:id/intent`,
+    `/payments/memberships/:id/intent`, `/payments/credit-balances/:id/intent` each create (or
+    reuse a still-pending) Stripe PaymentIntent for that specific already-created
+    booking/membership/credit-balance and return a `clientSecret`; `GET /payments/my`;
+    `POST /payments/webhook` (public, signature-verified via NestJS's `rawBody: true` app option
+    rather than a raw-body-parser workaround); `POST /payments/:id/refund` (HQ/Location Admin,
+    scoped via `assertManagesLocation` for booking-linked payments, HQ-only for
+    membership/package payments since those aren't location-scoped the same way).
+  - **Design: reserve-then-charge, not charge-then-reserve.** Bookings/memberships/credit-balances
+    are still created synchronously first (Phase 4/5's existing, already-tested
+    capacity/transaction logic is untouched), then a PaymentIntent is created against the
+    already-existing row. If the webhook later reports `payment_intent.payment_failed`, the
+    grant is undone: a failed **booking** payment releases the seat through a new
+    `BookingsService.releaseForFailedPayment()` (extracted from the existing `cancel()`'s
+    transaction body, so it gets the exact same credit-refund + waitlist-notify side effects as a
+    normal cancellation); a failed **membership** payment sets it `CANCELLED`; a failed
+    **package** payment zeroes the credit balance. This avoids redesigning the Serializable
+    capacity-check transaction to hold open across an async Stripe round-trip.
+  - **Revenue-safe status handling**: only `CONFIRMED`/`COMPLETED`/`NO_SHOW` bookings' amounts
+    ever counted as revenue (Phase 7); a booking whose payment later fails becomes `CANCELLED`
+    (via the release path above) and drops out of that count automatically — no separate
+    reconciliation step needed between Phase 6 and Phase 7's reporting.
+  - **Verified with curl**: a non-owner gets 403 creating a payment intent for someone else's
+    booking; a zero-price booking (credit/membership-paid) and a cancelled booking both correctly
+    400 rather than attempting a charge; a forged/bad webhook signature returns a clean 400 (was
+    initially an unhandled 500 from Stripe's own thrown error — caught and fixed); refunding a
+    non-existent payment 404s; a plain customer 403s on the refund route outright. Actually
+    charging a card, and the webhook firing for real, needs the account's real Stripe test keys —
+    not yet supplied, so those two steps are wired but unexercised; `StripeClientService` logs a
+    clear warning and every payment-intent call fails with Stripe's own "Invalid API Key" error
+    (not a crash) until `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` are set in `apps/api/.env`.
+  - **Frontend** (`apps/web`): new `StripePaymentPanel` component (Stripe Elements, `@stripe/
+    stripe-js` + `@stripe/react-stripe-js`) dropped into the booking flow (`/locations/[id]`) and
+    the membership/package flow (`/membership`) right after the existing create/subscribe/
+    purchase call succeeds, gated on the item actually having a price > 0. If
+    `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` isn't set (true in this dev environment right now), it
+    renders an honest inline notice instead of a broken card form — confirmed via a live browser
+    click-through (screenshots) that both flows still complete normally with that notice in place,
+    not a crash.
+  - **Not built**: an admin-facing UI for the refund endpoint (still curl/API-only — `apps/admin`
+    has no Bookings/Payments list page yet at all, a pre-existing gap noted since the admin-audit
+    phase); partial refunds (only full-amount); Apple Pay/Google Pay wallets (Stripe's
+    PaymentElement supports them automatically once real keys are in place, no extra code needed,
+    just untested here).
+
 ---
 
 ## 🔲 Remaining — in build order
 
 Each phase below is meant to be handed to Claude as its own prompt, one at a time, so the work
 stays reviewable in chunks instead of one giant change.
-
-### Phase 6 — Payments
-
-**Flow:** PAYG/membership/package payments go through a payment provider; G50 never stores card
-data directly (spec §14).
-
-**Prompt:**
-> Integrate Stripe in `apps/api`: Payment Intents for PAYG bookings, membership subscriptions,
-> and package purchases; a webhook endpoint updating `Payment.status` on success/failure; a
-> refund endpoint for authorised admins. Only `Booking.priceCharged` > 0 needs an actual charge —
-> a `CREDIT`-paid booking (`priceCharged: 0`) already settled the transaction in Phase 5's credit
-> ledger and needs no Stripe involvement; a `MEMBERSHIP`-paid booking still charges
-> `memberPrice`. Store only `provider` + `providerRef`, never raw card data. Add Stripe Elements
-> to the booking/purchase confirmation steps in `apps/web`.
-
----
 
 ### Phase 8 — Notifications
 

@@ -9,6 +9,7 @@ import type {
   UserMembership,
   CreditBalance,
 } from "@/lib/types";
+import { StripePaymentPanel } from "@/components/StripePaymentPanel";
 
 export default function MembershipPage() {
   const router = useRouter();
@@ -19,6 +20,8 @@ export default function MembershipPage() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [payingMembershipId, setPayingMembershipId] = useState<string | null>(null);
+  const [payingBalanceId, setPayingBalanceId] = useState<string | null>(null);
 
   useEffect(() => {
     load().catch(() => setError("Couldn't load memberships & packages — please refresh."));
@@ -54,8 +57,14 @@ export default function MembershipPage() {
       return;
     }
     try {
-      await apiFetch(`/membership-plans/${planId}/subscribe`, { method: "POST" });
+      const membership = await apiFetch<UserMembership>(`/membership-plans/${planId}/subscribe`, {
+        method: "POST",
+      });
       setNotice("Membership activated!");
+      const plan = plans?.find((p) => p.id === planId);
+      if (plan && Number(plan.price) > 0) {
+        setPayingMembershipId(membership.id);
+      }
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
@@ -70,8 +79,14 @@ export default function MembershipPage() {
       return;
     }
     try {
-      await apiFetch(`/credit-packages/${packageId}/purchase`, { method: "POST" });
+      const balance = await apiFetch<CreditBalance>(`/credit-packages/${packageId}/purchase`, {
+        method: "POST",
+      });
       setNotice("Package purchased — credits added to your account!");
+      const pkg = packages?.find((p) => p.id === packageId);
+      if (pkg && Number(pkg.price) > 0) {
+        setPayingBalanceId(balance.id);
+      }
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
@@ -103,6 +118,34 @@ export default function MembershipPage() {
         )}
         {notice && (
           <p className="mb-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{notice}</p>
+        )}
+
+        {payingMembershipId && (
+          <div className="mb-8 rounded-xl border border-teal-100 bg-white p-5">
+            <h2 className="text-sm font-semibold text-teal-900">Complete payment</h2>
+            <StripePaymentPanel
+              intentPath={`/payments/memberships/${payingMembershipId}/intent`}
+              amountLabel="membership"
+              onSuccess={() => {
+                setPayingMembershipId(null);
+                setNotice("Payment successful — membership active!");
+              }}
+            />
+          </div>
+        )}
+
+        {payingBalanceId && (
+          <div className="mb-8 rounded-xl border border-teal-100 bg-white p-5">
+            <h2 className="text-sm font-semibold text-teal-900">Complete payment</h2>
+            <StripePaymentPanel
+              intentPath={`/payments/credit-balances/${payingBalanceId}/intent`}
+              amountLabel="package"
+              onSuccess={() => {
+                setPayingBalanceId(null);
+                setNotice("Payment successful — credits added!");
+              }}
+            />
+          </div>
         )}
 
         {myBalances.length > 0 && (

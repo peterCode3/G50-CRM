@@ -18,6 +18,7 @@ import { MembershipsModule } from './memberships/memberships.module.js';
 import { CreditsModule } from './credits/credits.module.js';
 import { AttendanceModule } from './attendance/attendance.module.js';
 import { ReportsModule } from './reports/reports.module.js';
+import { PaymentsModule } from './payments/payments.module.js';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ReportsModule } from './reports/reports.module.js';
     CreditsModule,
     AttendanceModule,
     ReportsModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [

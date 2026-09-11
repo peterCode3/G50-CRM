@@ -159,10 +159,33 @@ export class BookingsService {
       throw new BadRequestException('Cannot cancel a session that has already started');
     }
 
+    return this.releaseBooking(id, dto.reason);
+  }
+
+  /**
+   * Releases a booking whose payment turned out to have actually failed
+   * (Stripe webhook, Phase 6) — same seat-release/credit-refund/waitlist-notify
+   * effects as a normal cancellation, but reached without a user in the
+   * request (the webhook is a trusted, signature-verified system caller) and
+   * without the "session already started" guard, since a payment usually
+   * fails within seconds of booking, not after the session has run.
+   * Idempotent: a booking that isn't CONFIRMED any more (e.g. already
+   * cancelled) is left alone.
+   */
+  async releaseForFailedPayment(id: string) {
+    const booking = await this.prisma.client.booking.findUnique({ where: { id } });
+    if (!booking || booking.status !== 'CONFIRMED') {
+      return booking;
+    }
+    return this.releaseBooking(id, 'Payment failed');
+  }
+
+  private releaseBooking(id: string, reason?: string) {
     return this.prisma.client.$transaction(async (tx) => {
+      const booking = await tx.booking.findUniqueOrThrow({ where: { id } });
       const cancelled = await tx.booking.update({
         where: { id },
-        data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: dto.reason },
+        data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: reason },
       });
 
       // Return the credit if this booking was paid for by redeeming one.

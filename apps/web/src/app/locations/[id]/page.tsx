@@ -12,6 +12,7 @@ import type {
   SessionWithAvailability,
   UserMembership,
 } from "@/lib/types";
+import { StripePaymentPanel } from "@/components/StripePaymentPanel";
 
 export default function LocationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -188,6 +189,7 @@ function ServiceCard({
             isLoggedIn={isLoggedIn}
             hasEligibleMembership={hasEligibleMembership}
             hasEligibleCredit={hasEligibleCredit}
+            price={service.price}
             memberPrice={service.memberPrice}
             onNeedLogin={onNeedLogin}
             onChanged={onChanged}
@@ -203,6 +205,7 @@ function SessionRow({
   isLoggedIn,
   hasEligibleMembership,
   hasEligibleCredit,
+  price,
   memberPrice,
   onNeedLogin,
   onChanged,
@@ -211,6 +214,7 @@ function SessionRow({
   isLoggedIn: boolean;
   hasEligibleMembership: boolean;
   hasEligibleCredit: boolean;
+  price: string;
   memberPrice: string | null;
   onNeedLogin: () => void;
   onChanged: () => void;
@@ -219,6 +223,7 @@ function SessionRow({
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [isFull, setIsFull] = useState(session.spotsLeft != null && session.spotsLeft <= 0);
   const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>("FULL_PRICE");
+  const [payingBookingId, setPayingBookingId] = useState<string | null>(null);
 
   const start = new Date(session.startTime);
   const dateLabel = start.toLocaleDateString(undefined, {
@@ -237,11 +242,14 @@ function SessionRow({
     setSubmitting(true);
     setMessage(null);
     try {
-      await apiFetch(`/sessions/${session.id}/bookings`, {
-        method: "POST",
-        body: JSON.stringify({ paymentMethod }),
-      });
+      const booking = await apiFetch<{ id: string; priceCharged: string | null }>(
+        `/sessions/${session.id}/bookings`,
+        { method: "POST", body: JSON.stringify({ paymentMethod }) },
+      );
       setMessage({ text: "Booked! See it in My Bookings.", isError: false });
+      if (paymentMethod === "FULL_PRICE" && booking.priceCharged && Number(booking.priceCharged) > 0) {
+        setPayingBookingId(booking.id);
+      }
       onChanged();
     } catch (err) {
       // A 409 covers two distinct cases from the API: "session is full" (offer
@@ -286,7 +294,8 @@ function SessionRow({
   }
 
   return (
-    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-2 py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="text-sm">
         <span className="font-medium text-teal-900">{dateLabel}</span>
         <span className="ml-2 text-teal-700">{timeLabel}</span>
@@ -339,6 +348,18 @@ function SessionRow({
           </>
         )}
       </div>
+      </div>
+
+      {payingBookingId && (
+        <StripePaymentPanel
+          intentPath={`/payments/bookings/${payingBookingId}/intent`}
+          amountLabel={`$${price}`}
+          onSuccess={() => {
+            setPayingBookingId(null);
+            setMessage({ text: "Payment successful!", isError: false });
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -93,14 +93,16 @@ export default function DashboardPage() {
           <StatCard
             label={isHqAdmin ? "Total locations" : "My locations"}
             value={locations.length}
+            delayMs={0}
           />
-          <StatCard label="Active locations" value={activeCount} />
+          <StatCard label="Active locations" value={activeCount} delayMs={60} />
           {isHqAdmin && (
-            <StatCard label="Service templates" value={templates?.length ?? 0} />
+            <StatCard label="Service templates" value={templates?.length ?? 0} delayMs={120} />
           )}
           <StatCard
             label="Your role"
             value={user.globalRole.replace("_", " ")}
+            delayMs={180}
             hint={user.locations.length > 0 ? `${user.locations.length} location role(s)` : undefined}
           />
         </div>

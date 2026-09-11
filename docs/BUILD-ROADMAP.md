@@ -396,6 +396,61 @@ actually got built, since implementations may diverge slightly from the prompt).
     pluralization produced "Search classs..." (double s) for "Class" → wrong. Added a small
     `pluralize()` helper (handles the `s`/`x`/`ch`/`sh` → `+es` case) instead of hardcoding `+s`
     everywhere.
+- **Phase 7 (half) — Attendance** — the spec's §25 acceptance test literally cannot pass without
+  this, so it was prioritized ahead of Payments/Notifications even though those come earlier in
+  the phase list. Verified with curl (RBAC, roster, marking, booking-status sync) and a real
+  browser click-through.
+  - **API** (`apps/api/src/attendance/`): `GET /sessions/:sessionId/roster` (names/emails of
+    everyone confirmed into a session, plus their current attendance status) and
+    `POST /bookings/:id/attendance` (mark `ATTENDED`/`ABSENT`/`LATE_CANCEL`/`NO_SHOW`). Permission
+    is a new `assertCanManageSession()` helper in `auth/location-access.util.ts` — same idea as
+    Phase 2's `assertManagesLocation()`, but also lets through the coach actually assigned to that
+    specific session (a coach isn't a `LOCATION_ADMIN`, but still needs to manage their own
+    session's roster).
+  - **Booking status syncs with attendance**: marking `ATTENDED` flips the `Booking` to
+    `COMPLETED`; anything else flips it to `NO_SHOW` — so a golfer's own booking history in
+    `apps/web` shows what actually happened instead of sitting at `CONFIRMED` forever. The
+    `Attendance` row keeps the precise reason (which of the three non-attended cases applied);
+    `Booking` only distinguishes attended vs. not.
+  - **Credit forfeiture "just works" without new logic**: the spec (§8) wants a late
+    cancellation/no-show to forfeit an already-spent credit rather than refund it. Since a credit
+    is debited at *booking* time (Phase 5) and only refunded by the explicit pre-start
+    `BookingsService.cancel()` path, marking a booking `NO_SHOW`/`ABSENT` after the fact never
+    touches the credit ledger at all — it simply never gets refunded. No new code was needed for
+    this; it falls out of the existing design.
+  - **Verified the exact bug class Phase 2 taught us to check for**: an unrelated customer
+    (not the coach, not staff at that location) correctly gets 403 on the roster; the assigned
+    coach and HQ can both mark attendance; attempting to mark attendance on an already-cancelled
+    booking correctly returns 400 rather than silently succeeding.
+  - **Frontend**: a "Roster" button on every session in the coach's `/schedule` page and on the
+    location's per-service schedule page, opening a shared `AttendanceModal` — one row per
+    booked golfer with four status buttons, the active one highlighted. Confirmed via a real
+    browser click-through that a status marked earlier (via curl) correctly shows as
+    pre-selected when the modal re-opens — the roster reflects real, persisted state, not just
+    an optimistic local guess.
+  - **Not yet built (the other half of Phase 7)**: filterable HQ/Location dashboards (by date/
+    coach/service/customer), revenue and class-utilisation reporting, coach activity, CSV export.
+    Renamed the remaining prompt below to "Phase 7 — Reporting & Dashboards" to reflect that
+    Attendance itself is done.
+- **UI animation pass** — direct response to "make the UI fully animated, best UI/UX," applied
+  as a small reusable motion system rather than one-off effects, so it's consistent everywhere
+  and easy to extend:
+  - `apps/admin/src/app/globals.css` now registers real Tailwind utilities (`animate-fade-in`,
+    `animate-fade-in-up`, `animate-scale-in`, `animate-slide-down`, `animate-shimmer`) backed by
+    actual `@keyframes`, plus a `prefers-reduced-motion` override that collapses all of them to
+    near-zero duration — accessibility isn't an afterthought bolted on later.
+  - Applied to the shared components everything else already builds on, so the coverage is broad
+    without touching every page individually: `Modal` (backdrop fade + panel scale-in),
+    `DropdownMenu` (scale-in + press feedback on the trigger), `Button` (press-scale on every
+    button in the app), `Card`/`StatCard` (fade-in-up entrance + hover-lift shadow, with an
+    optional stagger delay — used on the dashboard's stat row).
+  - New shared `Spinner` component replacing ad-hoc inline SVGs, used in `AttendanceModal`'s
+    loading state.
+  - **Deliberately not done**: full page-transition animations (Next.js App Router doesn't have
+    this built in without a routing-transition library; not worth the dependency weight for what
+    was asked) and a toast/notification system (existing inline error/success banners just gained
+    a fade-in rather than being replaced wholesale — a bigger toast-queue rework is a reasonable
+    separate follow-up if it's wanted).
 
 ---
 
@@ -420,16 +475,18 @@ data directly (spec §14).
 
 ---
 
-### Phase 7 — Attendance & Reporting
+### Phase 7 — Reporting & Dashboards
 
-**Flow:** coach marks attendance per session; HQ and Location Admin get filterable dashboards
-with CSV export (spec §11, §12, §16).
+**Flow:** HQ and Location Admin get filterable dashboards with CSV export (spec §16). Attendance
+itself (spec §11, §12) is already done — see the Done section above.
 
 **Prompt:**
-> Build Attendance endpoints in `apps/api` (mark attended/absent/late-cancel per `Booking`) and
-> a coach "today's schedule" screen in `apps/admin` with one-tap attendance controls. Build HQ
-> and Location Admin dashboards showing bookings, attendance, class utilisation, revenue,
-> memberships, and coach activity — filterable by location/date/service/coach, with CSV export.
+> Build HQ and Location Admin dashboards in `apps/admin` showing bookings, attendance, class
+> utilisation, revenue, memberships, and coach activity — filterable by location/date/service/
+> coach, with CSV export. This needs new aggregate endpoints in `apps/api` (bookings/attendance/
+> revenue don't have summary queries yet, only the existing `GET /sessions/summary` for chart
+> data from an earlier phase) and a real number for "revenue" pulled from `Booking.priceCharged`
+> — there's no `Payment` data to report on until Phase 6 is done.
 
 ---
 

@@ -7,6 +7,8 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
+import { Button } from "@/components/Button";
+import { AttendanceModal } from "@/components/AttendanceModal";
 
 function formatDateHeading(date: Date) {
   const today = new Date();
@@ -24,6 +26,7 @@ export default function SchedulePage() {
   const { user, loading: userLoading } = useCurrentUser();
   const [sessions, setSessions] = useState<MySession[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [rosterSession, setRosterSession] = useState<MySession | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -93,6 +96,13 @@ export default function SchedulePage() {
                     <Badge variant={s.service.type === "CLASS" ? "neutral" : "gold"}>
                       {s.service.type}
                     </Badge>
+                    <Button
+                      variant="secondary"
+                      className="!px-2 !py-1 text-xs"
+                      onClick={() => setRosterSession(s)}
+                    >
+                      Roster
+                    </Button>
                   </div>
                 </li>
               ))}
@@ -100,6 +110,16 @@ export default function SchedulePage() {
           </Card>
         ))}
       </div>
+
+      <AttendanceModal
+        sessionId={rosterSession?.id ?? null}
+        title={
+          rosterSession
+            ? `${rosterSession.service.name} · ${new Date(rosterSession.startTime).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+            : undefined
+        }
+        onClose={() => setRosterSession(null)}
+      />
     </>
   );
 }

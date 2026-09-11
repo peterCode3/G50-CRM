@@ -26,7 +26,7 @@ export function DropdownMenu({
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="More actions"
-        className="rounded-md p-1 text-teal-700/70 transition hover:bg-teal-50 hover:text-teal-900"
+        className="rounded-md p-1 text-teal-700/70 transition-all duration-150 hover:bg-teal-50 hover:text-teal-900 active:scale-90"
       >
         <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
           <circle cx="10" cy="4" r="1.5" />
@@ -35,7 +35,7 @@ export function DropdownMenu({
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-44 overflow-hidden rounded-md border border-teal-100 bg-white py-1 shadow-lg">
+        <div className="absolute right-0 z-10 mt-1 w-44 origin-top-right animate-scale-in overflow-hidden rounded-md border border-teal-100 bg-white py-1 shadow-lg">
           {items.map((item) => (
             <button
               key={item.label}
@@ -43,7 +43,7 @@ export function DropdownMenu({
                 setOpen(false);
                 item.onClick();
               }}
-              className={`block w-full px-3 py-2 text-left text-sm transition hover:bg-teal-50 ${
+              className={`block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-teal-50 ${
                 item.danger ? "text-red-600" : "text-teal-900"
               }`}
             >

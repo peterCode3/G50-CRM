@@ -37,7 +37,7 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-teal-900/40 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-teal-900/40 p-4 backdrop-blur-[2px] animate-fade-in"
       onClick={onClose}
     >
       <div
@@ -45,7 +45,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         onClick={(e) => e.stopPropagation()}
-        className={`max-h-[90vh] w-full overflow-y-auto rounded-xl bg-white shadow-xl ${wide ? "max-w-2xl" : "max-w-xl"}`}
+        className={`max-h-[90vh] w-full origin-center animate-scale-in overflow-y-auto rounded-xl bg-white shadow-xl ${wide ? "max-w-2xl" : "max-w-xl"}`}
       >
         <div className="flex items-start justify-between border-b border-teal-50 px-6 py-4">
           <div>

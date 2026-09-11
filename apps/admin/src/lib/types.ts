@@ -104,3 +104,15 @@ export interface CreditPackage {
   expiryDays: number | null;
   isActive: boolean;
 }
+
+export type AttendanceStatus = "ATTENDED" | "ABSENT" | "LATE_CANCEL" | "NO_SHOW";
+
+export interface RosterEntry {
+  bookingId: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  bookingStatus: string;
+  attendanceStatus: AttendanceStatus | null;
+}

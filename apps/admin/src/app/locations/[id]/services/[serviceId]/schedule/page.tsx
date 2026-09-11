@@ -11,6 +11,7 @@ import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
+import { AttendanceModal } from "@/components/AttendanceModal";
 
 const inputClass =
   "rounded-md border border-teal-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
@@ -46,6 +47,7 @@ export default function ServiceSchedulePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showOneOff, setShowOneOff] = useState(false);
   const [showRecurring, setShowRecurring] = useState(false);
+  const [rosterSession, setRosterSession] = useState<Session | null>(null);
 
   const coaches = staff.filter((s) => s.role === "COACH" || s.role === "LOCATION_ADMIN");
 
@@ -126,6 +128,12 @@ export default function ServiceSchedulePage() {
         onCreated={loadSessions}
       />
 
+      <AttendanceModal
+        sessionId={rosterSession?.id ?? null}
+        title={rosterSession ? formatDateTime(rosterSession.startTime) : undefined}
+        onClose={() => setRosterSession(null)}
+      />
+
       <div className="flex flex-col gap-6 p-8">
         <Card title={`Upcoming sessions (${sessions.length})`}>
           {sessions.length === 0 ? (
@@ -164,7 +172,14 @@ export default function ServiceSchedulePage() {
                           <span className="text-teal-700">{s.bookedCount}</span>
                         )}
                       </td>
-                      <td className="py-2.5 pr-4 text-right">
+                      <td className="py-2.5 pr-4 text-right whitespace-nowrap">
+                        <Button
+                          variant="secondary"
+                          className="!px-2 !py-1 text-xs"
+                          onClick={() => setRosterSession(s)}
+                        >
+                          Roster
+                        </Button>
                         <Button
                           variant="danger"
                           className="!px-2 !py-1 text-xs"

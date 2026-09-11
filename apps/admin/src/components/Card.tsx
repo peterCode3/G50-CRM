@@ -10,7 +10,9 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section className={`rounded-lg border border-teal-100 bg-white shadow-sm ${className}`}>
+    <section
+      className={`animate-fade-in-up rounded-lg border border-teal-100 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md ${className}`}
+    >
       {title && (
         <div className="flex items-center justify-between border-b border-teal-50 px-5 py-3.5">
           <h2 className="text-sm font-semibold text-teal-900">{title}</h2>

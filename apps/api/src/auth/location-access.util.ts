@@ -20,3 +20,19 @@ export function assertManagesLocation(user: AuthenticatedUser, locationId: strin
     throw new ForbiddenException('You do not manage this location');
   }
 }
+
+/**
+ * Same idea as `assertManagesLocation`, but also lets through the coach
+ * actually assigned to this specific session — a coach isn't a
+ * LOCATION_ADMIN, but they still need to see/manage their own session's
+ * roster and attendance.
+ */
+export function assertCanManageSession(
+  user: AuthenticatedUser,
+  session: { locationId: string; coachId: string | null },
+): void {
+  if (session.coachId === user.id) {
+    return;
+  }
+  assertManagesLocation(user, session.locationId);
+}

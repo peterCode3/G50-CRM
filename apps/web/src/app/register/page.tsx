@@ -43,7 +43,7 @@ export default function RegisterPage() {
     >
       <div className="animate-scale-in w-full max-w-sm rounded-2xl border border-teal-100 bg-white p-8 shadow-lg">
         <div className="mb-6 text-center">
-          <h1 className="text-xl font-semibold text-teal-900">Create your account</h1>
+          <h1 className="font-display text-2xl font-semibold text-teal-900">Create your account</h1>
           <p className="mt-1 text-sm text-teal-700">
             Join G50.Golf to book classes and coaching near you.
           </p>

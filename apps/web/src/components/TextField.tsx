@@ -12,17 +12,17 @@ export function TextField({
   hint?: string;
 } & InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <label className={`flex flex-col gap-1.5 text-sm ${className}`}>
+    <label className={`group flex flex-col gap-1.5 text-sm ${className}`}>
       <span className="font-medium text-teal-900">{label}</span>
       <div className="relative">
         {icon && (
-          <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-teal-400">
+          <span className="pointer-events-none absolute top-1/2 left-2.5 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-teal-50 text-teal-500 transition-colors group-focus-within:bg-gold-100 group-focus-within:text-gold-900">
             {icon}
           </span>
         )}
         <input
-          className={`w-full rounded-md border border-teal-300 py-2.5 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 ${
-            icon ? "pl-9 pr-3" : "px-3"
+          className={`w-full rounded-md border-2 border-teal-200 py-2.5 outline-none transition-all duration-150 focus:border-gold-500 focus:ring-4 focus:ring-gold-500/15 disabled:bg-teal-50/60 disabled:text-teal-500 ${
+            icon ? "pl-11 pr-3" : "px-3"
           }`}
           {...props}
         />

@@ -90,7 +90,7 @@ export function CheckoutModal({
     <div className="animate-fade-in fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-teal-950/50 px-4 py-10">
       <div className="animate-scale-in w-full max-w-md rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-teal-50 px-6 py-4">
-          <h2 className="text-sm font-semibold text-teal-900">Checkout</h2>
+          <h2 className="font-display text-base font-semibold text-teal-900">Checkout</h2>
           <button
             onClick={onClose}
             className="rounded-md p-1 text-teal-400 transition hover:bg-teal-50 hover:text-teal-700"

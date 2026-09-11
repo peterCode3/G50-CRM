@@ -32,7 +32,7 @@ export default function HomePage() {
         <p className="animate-fade-in relative text-xs font-semibold tracking-widest text-gold-300 uppercase">
           Book online in minutes
         </p>
-        <h1 className="animate-fade-in-up relative mt-3 text-4xl font-semibold text-white sm:text-5xl">
+        <h1 className="animate-fade-in-up font-display relative mt-3 text-4xl font-semibold text-white sm:text-5xl">
           Find your G50.Golf location
         </h1>
         <p

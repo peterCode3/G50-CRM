@@ -38,7 +38,7 @@ export default function LoginPage() {
     <AuthLayout>
       <div className="animate-scale-in w-full max-w-sm rounded-2xl border border-teal-100 bg-white p-8 shadow-lg">
         <div className="mb-6 text-center">
-          <h1 className="text-xl font-semibold text-teal-900">Welcome back</h1>
+          <h1 className="font-display text-2xl font-semibold text-teal-900">Welcome back</h1>
           <p className="mt-1 text-sm text-teal-700">Log in to book your next session.</p>
         </div>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">

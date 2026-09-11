@@ -747,6 +747,36 @@ actually got built, since implementations may diverge slightly from the prompt).
     service/date/time; completing the booking succeeds; the schedule column's direct "Book now"
     also opens checkout correctly. Also checked at 390px mobile width — the two columns stack
     cleanly with no horizontal scroll.
+- **Cross-app visual polish pass** — direct follow-up ("form view acha nahi lg raha, even admin
+  forms harus banao"): pushed richer styling through the *shared* components both apps already
+  build on, so one change reaches every form/modal in both `apps/web` and `apps/admin` rather than
+  hand-editing each page.
+  - **New display font**: added Google Fraunces (a serif with real character, distinct from the
+    Geist sans used for body/UI text) as `--font-display` / the `font-display` utility in both
+    apps' `globals.css`, applied to `apps/web`'s auth-page and location-page `<h1>`s and
+    `apps/admin`'s shared `PageHeader` — so **every** admin page title and every web hero heading
+    picked it up from one or two edits each, not a page-by-page pass.
+  - **`Button` (both apps)**: primary went from a flat gold fill to a gold gradient with a
+    matching shadow, a hover lift (`-translate-y-0.5` + larger shadow), and a press-down
+    (`active:translate-y-0` + scale) — every button in both apps updates automatically, since
+    every button in this codebase already goes through this one component.
+  - **`apps/web` `TextField`**: the email/lock/user icon moved into a small circular badge instead
+    of a bare glyph, the badge recolors gold on focus, and the input itself gained a thicker
+    border with a soft gold focus ring instead of the plain thin-border/blue-ish default.
+  - **`apps/web` `AuthLayout`**: the brand panel had a lot of dead space between the tagline and
+    the footer — filled it with a 3-item icon feature list (book fast / one account everywhere /
+    track bookings-credits-membership) and added a soft gold glow blur behind the panel for depth,
+    instead of just the flat gradient + dot pattern.
+  - **`apps/admin` `Modal`**: the dialog title now uses the same display font, so every admin
+    create/edit form (Location, Service, Staff, Template, Membership, Credit Package — all of them
+    route through this one component) picked it up in a single edit.
+  - **Verified visually**: confirmed via computed-style checks that both apps' `<h1>` actually
+    resolve to Fraunces (not just present in CSS but unused), and screenshotted the login page,
+    the admin dashboard, and an admin "Create a location" modal to confirm the shared-component
+    changes actually reached an unrelated admin form without touching that form's own code.
+  - **Known limitation, not addressed this round**: dev database still has leftover test/UAT
+    locations cluttering the home page grid and admin's Locations list (flagged in an earlier
+    entry above, still true) — a real cleanup, not a design fix, and still pending the user's OK.
 
 ---
 

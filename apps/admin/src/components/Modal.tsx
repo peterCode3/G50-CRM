@@ -49,7 +49,7 @@ export function Modal({
       >
         <div className="flex items-start justify-between border-b border-teal-50 px-6 py-4">
           <div>
-            <h2 id="modal-title" className="text-base font-semibold text-teal-900">
+            <h2 id="modal-title" className="font-display text-lg font-semibold text-teal-900">
               {title}
             </h2>
             {description && <p className="mt-0.5 text-sm text-teal-700">{description}</p>}

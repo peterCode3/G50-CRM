@@ -236,7 +236,7 @@ export default function LocationDetailPage() {
           >
             ← All locations
           </Link>
-          <h1 className="animate-fade-in-up mt-2 text-3xl font-semibold text-white">
+          <h1 className="animate-fade-in-up font-display mt-2 text-3xl font-semibold text-white">
             {location.name}
           </h1>
           {location.address && (

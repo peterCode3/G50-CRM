@@ -395,7 +395,7 @@ function SessionRow({
             </span>
           )}
           {isFull ? (
-            <Button variant="secondary" className="!px-3 !py-1.5 text-xs" onClick={onJoinWaitlist} disabled={submitting}>
+            <Button variant="secondary" onClick={onJoinWaitlist} disabled={submitting}>
               {submitting ? "..." : "Join Waitlist"}
             </Button>
           ) : (
@@ -404,7 +404,7 @@ function SessionRow({
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value as BookingPaymentMethod)}
-                  className="rounded-md border border-teal-300 px-2 py-1.5 text-xs text-teal-900"
+                  className="rounded-md border border-teal-300 px-3 py-2 text-sm text-teal-900"
                 >
                   <option value="FULL_PRICE">Pay full price</option>
                   {hasEligibleMembership && (
@@ -415,7 +415,7 @@ function SessionRow({
                   {hasEligibleCredit && <option value="CREDIT">Use 1 credit</option>}
                 </select>
               )}
-              <Button className="!px-3 !py-1.5 text-xs" onClick={onBook} disabled={submitting}>
+              <Button onClick={onBook} disabled={submitting}>
                 {submitting ? "..." : "Book"}
               </Button>
             </>

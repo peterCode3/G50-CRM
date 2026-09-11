@@ -146,9 +146,7 @@ export default function BookingsPage() {
                     </p>
                   </div>
                   {w.status === "NOTIFIED" && (
-                    <Button className="!px-3 !py-1.5 text-xs" onClick={() => onClaim(w.id)}>
-                      Claim spot
-                    </Button>
+                    <Button onClick={() => onClaim(w.id)}>Claim spot</Button>
                   )}
                 </div>
               ))}
@@ -182,7 +180,7 @@ export default function BookingsPage() {
                   </div>
                   <Button
                     variant="secondary"
-                    className="!border-red-200 !px-3 !py-1.5 text-xs !text-red-600 hover:!bg-red-50"
+                    className="!border-red-400 !bg-red-50 !text-red-700 hover:!bg-red-100"
                     onClick={() => onCancel(b.id)}
                   >
                     Cancel

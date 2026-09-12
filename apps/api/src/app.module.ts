@@ -21,6 +21,7 @@ import { AttendanceModule } from './attendance/attendance.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { UploadsModule } from './uploads/uploads.module.js';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
     ReportsModule,
     PaymentsModule,
     NotificationsModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [

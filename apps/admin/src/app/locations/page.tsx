@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
+import { resolveImageUrl } from "@/lib/upload";
 
 // Alternating cover treatments so a grid of cards doesn't read as one flat block —
 // still entirely within the brand palette (teal <-> gold), no per-location images required.
@@ -202,14 +203,26 @@ export default function LocationsPage() {
               >
                 <Link href={`/locations/${loc.id}`} className="block">
                   <div
-                    className={`relative flex h-24 items-start justify-between bg-gradient-to-br p-3 ${COVERS[i % COVERS.length]}`}
+                    className={`relative flex h-24 items-start justify-between overflow-hidden bg-gradient-to-br p-3 ${COVERS[i % COVERS.length]}`}
                   >
-                    <Badge variant={loc.isActive ? "success" : "danger"}>
-                      {loc.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                    <span className="pointer-events-none select-none text-5xl font-bold text-white/10">
-                      {initialsFor(loc.name)}
-                    </span>
+                    {loc.images.length > 0 && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={resolveImageUrl(loc.images[0])}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    )}
+                    <div className="relative z-10">
+                      <Badge variant={loc.isActive ? "success" : "danger"}>
+                        {loc.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                    {loc.images.length === 0 && (
+                      <span className="pointer-events-none select-none text-5xl font-bold text-white/10">
+                        {initialsFor(loc.name)}
+                      </span>
+                    )}
                   </div>
                 </Link>
                 <div className="relative px-4 pt-8 pb-4">

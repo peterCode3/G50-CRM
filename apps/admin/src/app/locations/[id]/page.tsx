@@ -18,6 +18,8 @@ import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
+import { ImageGalleryUploader } from "@/components/ImageGalleryUploader";
+import { resolveImageUrl } from "@/lib/upload";
 
 const inputClass =
   "rounded-md border border-teal-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
@@ -185,7 +187,21 @@ export default function LocationDetailPage() {
               <tbody className="divide-y divide-teal-50">
                 {services.map((svc) => (
                   <tr key={svc.id}>
-                    <td className="py-2.5 pr-4 font-medium text-teal-900">{svc.name}</td>
+                    <td className="py-2.5 pr-4 font-medium text-teal-900">
+                      <div className="flex items-center gap-2.5">
+                        {svc.images.length > 0 ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={resolveImageUrl(svc.images[0])}
+                            alt=""
+                            className="h-8 w-8 shrink-0 rounded object-cover"
+                          />
+                        ) : (
+                          <div className="h-8 w-8 shrink-0 rounded bg-teal-100" />
+                        )}
+                        {svc.name}
+                      </div>
+                    </td>
                     <td className="py-2.5 pr-4">
                       <Badge variant={svc.type === "CLASS" ? "neutral" : "gold"}>{svc.type}</Badge>
                     </td>
@@ -509,6 +525,7 @@ function EditLocationModal({
   const [email, setEmail] = useState(location.email ?? "");
   const [description, setDescription] = useState(location.description ?? "");
   const [logoUrl, setLogoUrl] = useState(location.logoUrl ?? "");
+  const [images, setImages] = useState<string[]>(location.images ?? []);
   const [hours, setHours] = useState<OpeningHours>(location.openingHours ?? defaultOpeningHours());
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -522,6 +539,7 @@ function EditLocationModal({
     setEmail(location.email ?? "");
     setDescription(location.description ?? "");
     setLogoUrl(location.logoUrl ?? "");
+    setImages(location.images ?? []);
     setHours(location.openingHours ?? defaultOpeningHours());
     setError(null);
   }, [open, location]);
@@ -544,6 +562,7 @@ function EditLocationModal({
           email: email || undefined,
           description: description || undefined,
           logoUrl: logoUrl || undefined,
+          images,
           openingHours: hours,
         }),
       });
@@ -599,9 +618,10 @@ function EditLocationModal({
               className={inputClass}
             />
             <span className="text-xs text-teal-700/70">
-              Direct file upload isn&apos;t built yet — paste a hosted image URL for now.
+              Optional — a hosted URL for a small brand mark, separate from the photo gallery below.
             </span>
           </label>
+          <ImageGalleryUploader images={images} onChange={setImages} />
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium text-teal-900">Description</span>
             <textarea
@@ -682,6 +702,7 @@ function EditServiceModal({
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
   const [memberPrice, setMemberPrice] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -692,6 +713,7 @@ function EditServiceModal({
     setCapacity(service.capacity != null ? String(service.capacity) : "");
     setPrice(service.price);
     setMemberPrice(service.memberPrice ?? "");
+    setImages(service.images ?? []);
     setError(null);
   }, [service]);
 
@@ -711,6 +733,7 @@ function EditServiceModal({
           capacity: capacity ? Number(capacity) : undefined,
           price: Number(price),
           memberPrice: memberPrice ? Number(memberPrice) : undefined,
+          images,
         }),
       });
       onClose();
@@ -784,6 +807,7 @@ function EditServiceModal({
             />
           </label>
         </div>
+        <ImageGalleryUploader images={images} onChange={setImages} />
         {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
         <div className="mt-1 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>

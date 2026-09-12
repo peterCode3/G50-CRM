@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Service, SessionWithAvailability } from "@/lib/types";
+import { resolveImageUrl } from "@/lib/api";
 import { ClockIcon, FlagIcon, PinIcon, UsersIcon } from "./icons";
 
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -111,11 +112,18 @@ export function BookingModal({
 
         <div className="max-h-[75vh] overflow-y-auto">
           <div
-            className={`flex h-28 items-center justify-center bg-gradient-to-br ${
+            className={`relative flex h-28 items-center justify-center overflow-hidden bg-gradient-to-br ${
               service.type === "CLASS" ? "from-teal-900 to-teal-700" : "from-gold-700 to-teal-900"
             }`}
           >
-            {service.type === "CLASS" ? (
+            {service.images.length > 0 ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={resolveImageUrl(service.images[0])}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : service.type === "CLASS" ? (
               <FlagIcon className="h-10 w-10 text-white/70" />
             ) : (
               <ClockIcon className="h-10 w-10 text-white/70" />

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { apiFetch, ApiError, type AuthenticatedUser } from "@/lib/api";
+import { apiFetch, ApiError, resolveImageUrl, type AuthenticatedUser } from "@/lib/api";
 import type {
   CreditBalance,
   Location,
@@ -280,11 +280,18 @@ export default function LocationDetailPage() {
                         className="flex items-center gap-3 rounded-lg border border-teal-100 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-gold-500 hover:shadow-md"
                       >
                         <div
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gradient-to-br ${
+                          className={`relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br ${
                             svc.type === "CLASS" ? "from-teal-900 to-teal-700" : "from-gold-700 to-teal-900"
                           }`}
                         >
-                          {svc.type === "CLASS" ? (
+                          {svc.images.length > 0 ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={resolveImageUrl(svc.images[0])}
+                              alt=""
+                              className="absolute inset-0 h-full w-full object-cover"
+                            />
+                          ) : svc.type === "CLASS" ? (
                             <FlagIcon className="h-4 w-4 text-white/80" />
                           ) : (
                             <ClockIcon className="h-4 w-4 text-white/80" />

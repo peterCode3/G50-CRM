@@ -10,6 +10,8 @@ import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
 import { DropdownMenu } from "@/components/DropdownMenu";
+import { ImageGalleryUploader } from "@/components/ImageGalleryUploader";
+import { resolveImageUrl } from "@/lib/upload";
 
 const inputClass =
   "rounded-md border border-teal-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
@@ -41,6 +43,7 @@ export function ServiceTemplatesPage({ type, title, singular }: Props) {
   const [price, setPrice] = useState("");
   const [memberPrice, setMemberPrice] = useState("");
   const [description, setDescription] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,6 +71,7 @@ export function ServiceTemplatesPage({ type, title, singular }: Props) {
     setPrice("");
     setMemberPrice("");
     setDescription("");
+    setImages([]);
     setCreateError(null);
   }
 
@@ -86,6 +90,7 @@ export function ServiceTemplatesPage({ type, title, singular }: Props) {
           defaultCapacity: type === "CLASS" && capacity ? Number(capacity) : undefined,
           defaultPrice: Number(price),
           defaultMemberPrice: memberPrice ? Number(memberPrice) : undefined,
+          images,
         }),
       });
       resetCreateForm();
@@ -216,6 +221,7 @@ export function ServiceTemplatesPage({ type, title, singular }: Props) {
               />
             </label>
           </div>
+          <ImageGalleryUploader images={images} onChange={setImages} />
           {createError && (
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{createError}</p>
           )}
@@ -262,13 +268,22 @@ export function ServiceTemplatesPage({ type, title, singular }: Props) {
                   type === "CLASS" ? "border-l-teal-500" : "border-l-gold-500"
                 }`}
               >
-                <Image
-                  src="/logo.png"
-                  alt=""
-                  width={818}
-                  height={616}
-                  className="h-12 w-12 shrink-0 rounded-md border border-teal-50 bg-teal-900 object-contain p-1"
-                />
+                {tpl.images && tpl.images.length > 0 ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={resolveImageUrl(tpl.images[0])}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-md border border-teal-50 object-cover"
+                  />
+                ) : (
+                  <Image
+                    src="/logo.png"
+                    alt=""
+                    width={818}
+                    height={616}
+                    className="h-12 w-12 shrink-0 rounded-md border border-teal-50 bg-teal-900 object-contain p-1"
+                  />
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-1">
                     <h3 className="truncate text-sm font-semibold text-teal-900">{tpl.name}</h3>
@@ -330,6 +345,7 @@ function EditTemplateModal({
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
   const [memberPrice, setMemberPrice] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -341,6 +357,7 @@ function EditTemplateModal({
     setCapacity(template.defaultCapacity != null ? String(template.defaultCapacity) : "");
     setPrice(template.defaultPrice);
     setMemberPrice(template.defaultMemberPrice ?? "");
+    setImages(template.images ?? []);
     setError(null);
   }, [template]);
 
@@ -361,6 +378,7 @@ function EditTemplateModal({
           defaultCapacity: type === "CLASS" && capacity ? Number(capacity) : undefined,
           defaultPrice: Number(price),
           defaultMemberPrice: memberPrice ? Number(memberPrice) : undefined,
+          images,
         }),
       });
       onClose();
@@ -443,6 +461,7 @@ function EditTemplateModal({
             />
           </label>
         </div>
+        <ImageGalleryUploader images={images} onChange={setImages} />
         {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
         <div className="mt-1 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>

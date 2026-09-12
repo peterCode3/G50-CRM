@@ -777,6 +777,42 @@ actually got built, since implementations may diverge slightly from the prompt).
   - **Known limitation, not addressed this round**: dev database still has leftover test/UAT
     locations cluttering the home page grid and admin's Locations list (flagged in an earlier
     entry above, still true) — a real cleanup, not a design fix, and still pending the user's OK.
+- **Image gallery upload for Locations, Classes/Appointments, and per-location Services** — closes
+  a known gap flagged since the design-polish phase ("no image upload — no file storage
+  infrastructure exists yet"). Local disk storage for now (this environment has no cloud storage
+  account configured) — a real production deploy would swap this for S3/Cloudinary without
+  touching any caller, since everything goes through one `resolveImageUrl()`/upload endpoint.
+  - **API**: new `apps/api/src/uploads/` module — `POST /uploads/image` (HQ/Location Admin only,
+    multipart via `multer`, JPEG/PNG/WEBP/GIF only, 5MB cap) saves to `apps/api/uploads/` (outside
+    `dist/`, gitignored) and returns `{ url: "/uploads/<uuid>.<ext>" }`; that directory is served
+    back publicly via Nest's `useStaticAssets` in `main.ts` — a static-asset route, not a
+    Nest-guarded controller, so viewing an image never needs auth even though uploading does.
+    `Location`, `ServiceTemplate`, and `Service` all gained an `images String[] @default([])`
+    column (migration `add_gallery_images`); activating a template into a location-specific
+    `Service` now copies the template's `images` as a starting point (same inheritance pattern
+    already used for name/description/price).
+  - **Caught a real bug during first boot, not just at review time**: initially wrote the static
+    file serving with a direct `import express from 'express'`, which crashed the compiled API at
+    startup (`ERR_MODULE_NOT_FOUND`) — `express` is only a *transitive* dependency here (pulled in
+    by `@nestjs/platform-express`), not a direct one, so pnpm's strict linking doesn't expose it to
+    a bare import. Fixed by using Nest's own `NestExpressApplication`/`useStaticAssets` instead of
+    reaching for raw Express.
+  - **`apps/admin`**: new `ImageGalleryUploader` (thumbnail grid, a "Cover" tag on the first image,
+    per-image remove, an upload button — no drag-reorder yet) wired into the Location edit modal,
+    the Class/Appointment template create-and-edit forms (`ServiceTemplatesPage`), and the
+    per-location service edit modal. Card covers across the admin app (Locations grid, Classes/
+    Appointments grid, the per-location services table) now show the first uploaded image in place
+    of the gradient-and-initials/generic-logo placeholder whenever one exists.
+  - **`apps/web`**: `LocationCard`, the location page's service catalog rows, and the
+    `BookingModal`'s banner all show the same uploaded cover image the admin side set, with the
+    same gradient-placeholder fallback when none exists yet.
+  - **Verified with real browser click-throughs** (not just curl): uploaded a real file through
+    the admin gallery UI to a location, a service template, and a directly-activated service in
+    turn, confirming each surface actually re-rendered with the new photo — including the
+    expected, *not* a bug, behavior that uploading to a template doesn't retroactively change a
+    service that was already activated before the image existed (each has its own `images` copy
+    from the point of activation onward). Also verified with curl: non-image upload → clean 400,
+    no auth → 401, a customer account → 403.
 
 ---
 

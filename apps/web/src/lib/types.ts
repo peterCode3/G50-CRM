@@ -4,6 +4,7 @@ export interface Location {
   slug: string;
   address: string | null;
   description: string | null;
+  images: string[];
   isActive: boolean;
 }
 
@@ -18,6 +19,7 @@ export interface Service {
   capacity: number | null;
   price: string;
   memberPrice: string | null;
+  images: string[];
   isActive: boolean;
 }
 

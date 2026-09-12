@@ -18,6 +18,7 @@ export interface Location {
   email: string | null;
   description: string | null;
   logoUrl: string | null;
+  images: string[];
   openingHours: OpeningHours | null;
   isActive: boolean;
 }
@@ -32,6 +33,7 @@ export interface ServiceTemplate {
   defaultCapacity: number | null;
   defaultPrice: string;
   defaultMemberPrice: string | null;
+  images: string[];
   isActive: boolean;
 }
 
@@ -47,6 +49,7 @@ export interface Service {
   capacity: number | null;
   price: string;
   memberPrice: string | null;
+  images: string[];
   isActive: boolean;
 }
 

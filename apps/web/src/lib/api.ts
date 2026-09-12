@@ -1,5 +1,10 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333";
 
+/** Uploaded image URLs are API-relative ("/uploads/xyz.png") — resolve for <img src>. */
+export function resolveImageUrl(url: string): string {
+  return url.startsWith("http") ? url : `${API_URL}${url}`;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,

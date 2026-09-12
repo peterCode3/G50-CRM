@@ -1,4 +1,4 @@
-import { IsEmail, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateLocationDto {
   @IsString()
@@ -28,6 +28,11 @@ export class CreateLocationDto {
   @IsOptional()
   @IsString()
   logoUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];
 
   @IsOptional()
   @IsObject()

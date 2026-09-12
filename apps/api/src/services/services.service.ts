@@ -34,6 +34,7 @@ export class ServicesService {
         capacity: dto.capacity ?? template.defaultCapacity,
         price: dto.price ?? template.defaultPrice,
         memberPrice: dto.memberPrice ?? template.defaultMemberPrice,
+        images: template.images,
       },
     });
   }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Location } from "@/lib/types";
+import { resolveImageUrl } from "@/lib/api";
 import { PinIcon, ArrowRightIcon } from "./icons";
 
 const COVERS = [
@@ -25,11 +26,20 @@ export function LocationCard({ location, index = 0 }: { location: Location; inde
       className="group animate-fade-in-up overflow-hidden rounded-xl border border-teal-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
     >
       <div
-        className={`relative flex h-20 items-center justify-center bg-gradient-to-br ${COVERS[index % COVERS.length]}`}
+        className={`relative flex h-20 items-center justify-center overflow-hidden bg-gradient-to-br ${COVERS[index % COVERS.length]}`}
       >
-        <span className="pointer-events-none select-none text-4xl font-bold text-white/15">
-          {initialsFor(location.name)}
-        </span>
+        {location.images.length > 0 ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={resolveImageUrl(location.images[0])}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <span className="pointer-events-none select-none text-4xl font-bold text-white/15">
+            {initialsFor(location.name)}
+          </span>
+        )}
       </div>
       <div className="p-5">
         <h2 className="text-lg font-semibold text-teal-900">{location.name}</h2>

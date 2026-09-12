@@ -52,6 +52,18 @@ export class UpdateServiceDto {
   bufferAfterMinutes?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  bookingIntervalMinutes?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minNoticeHours?: number;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 

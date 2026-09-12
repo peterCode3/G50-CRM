@@ -7,6 +7,7 @@ import { assertCanManageSession, resolveLocationScope } from '../auth/location-a
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { CancelBookingDto } from './dto/cancel-booking.dto.js';
 import type { CreateBookingDto } from './dto/create-booking.dto.js';
+import type { RescheduleBookingDto } from './dto/reschedule-booking.dto.js';
 
 // A class is capacity-managed and self-service; an appointment is 1:1 with a
 // specific coach, so it needs their sign-off before it's really "on" — spec
@@ -15,6 +16,17 @@ const REQUIRES_COACH_APPROVAL: readonly string[] = ['APPOINTMENT'];
 // Both of these hold a seat — a PENDING request blocks the slot exactly like
 // a CONFIRMED one so nobody else can grab it while the coach is deciding.
 const SEAT_HOLDING_STATUSES: BookingStatus[] = ['CONFIRMED', 'PENDING'];
+
+/** Spec §2's "booking rules" — a service can require booking a minimum number of hours ahead. */
+function assertMeetsMinNotice(startTime: Date, minNoticeHours: number | null): void {
+  if (!minNoticeHours) return;
+  const hoursUntilStart = (startTime.getTime() - Date.now()) / (60 * 60 * 1000);
+  if (hoursUntilStart < minNoticeHours) {
+    throw new BadRequestException(
+      `This service requires booking at least ${minNoticeHours} hour${minNoticeHours === 1 ? '' : 's'} in advance`,
+    );
+  }
+}
 
 export interface BookingAdminFilters {
   locationId?: string;
@@ -59,6 +71,7 @@ export class BookingsService {
     if (session.startTime <= new Date()) {
       throw new BadRequestException('This session has already started');
     }
+    assertMeetsMinNotice(session.startTime, session.service.minNoticeHours);
 
     const existing = await this.prisma.client.booking.findFirst({
       where: { sessionId, userId: user.id, status: { in: SEAT_HOLDING_STATUSES } },
@@ -245,6 +258,129 @@ export class BookingsService {
     }
 
     return this.releaseBooking(id, dto.reason);
+  }
+
+  /**
+   * Moves a booking to a different session of the *same* service — spec §9/13's
+   * "reschedule" requirement, distinct from cancel+rebook: it's one atomic move,
+   * it frees the old seat for the waitlist, and it keeps the original price/
+   * payment method rather than re-charging. Same capacity/duplicate-booking
+   * safety as `create()`, applied to the destination session.
+   */
+  async reschedule(id: string, dto: RescheduleBookingDto, user: AuthenticatedUser) {
+    const booking = await this.prisma.client.booking.findUnique({
+      where: { id },
+      include: { user: true, session: { include: { service: true } } },
+    });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+    this.assertCanManageBooking(booking, user);
+    if (booking.status !== 'CONFIRMED' && booking.status !== 'PENDING') {
+      throw new BadRequestException('Only a confirmed or pending booking can be rescheduled');
+    }
+    if (booking.session.startTime <= new Date()) {
+      throw new BadRequestException('Cannot reschedule a session that has already started');
+    }
+    if (dto.newSessionId === booking.sessionId) {
+      throw new BadRequestException('This is already the session for this booking');
+    }
+
+    const newSession = await this.prisma.client.session.findUnique({
+      where: { id: dto.newSessionId },
+      include: { service: true, coach: true },
+    });
+    if (!newSession) {
+      throw new NotFoundException('Session not found');
+    }
+    if (newSession.serviceId !== booking.session.serviceId) {
+      throw new BadRequestException('You can only reschedule to another time for the same service');
+    }
+    if (newSession.isCancelled) {
+      throw new BadRequestException('This session has been cancelled');
+    }
+    if (newSession.startTime <= new Date()) {
+      throw new BadRequestException('This session has already started');
+    }
+    assertMeetsMinNotice(newSession.startTime, newSession.service.minNoticeHours);
+
+    const oldSessionId = booking.sessionId;
+    const oldStartTime = booking.session.startTime;
+    const needsCoachApproval = REQUIRES_COACH_APPROVAL.includes(newSession.service.type);
+    const newStatus: BookingStatus = needsCoachApproval ? 'PENDING' : 'CONFIRMED';
+
+    let updated;
+    try {
+      updated = await this.prisma.client.$transaction(
+        async (tx) => {
+          const duplicate = await tx.booking.findFirst({
+            where: {
+              sessionId: dto.newSessionId,
+              userId: user.id,
+              status: { in: SEAT_HOLDING_STATUSES },
+              NOT: { id },
+            },
+          });
+          if (duplicate) {
+            throw new ConflictException('You already have a booking for this session');
+          }
+
+          if (newSession.capacity != null) {
+            const heldCount = await tx.booking.count({
+              where: { sessionId: dto.newSessionId, status: { in: SEAT_HOLDING_STATUSES } },
+            });
+            if (heldCount >= newSession.capacity) {
+              throw new ConflictException('This session is full — join the waitlist instead');
+            }
+          }
+
+          return tx.booking.update({
+            where: { id },
+            data: { sessionId: dto.newSessionId, locationId: newSession.locationId, status: newStatus },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (err) {
+      if (err instanceof ConflictException || err instanceof BadRequestException) {
+        throw err;
+      }
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034') {
+        throw new ConflictException('This session just filled up — join the waitlist instead');
+      }
+      throw err;
+    }
+
+    // The old session just freed a seat — offer it to the next waitlisted golfer there.
+    const nextInLine = await this.prisma.client.waitlistEntry.findFirst({
+      where: { sessionId: oldSessionId, status: 'WAITING' },
+      orderBy: { position: 'asc' },
+      include: { user: true },
+    });
+    if (nextInLine) {
+      await this.prisma.client.waitlistEntry.update({
+        where: { id: nextInLine.id },
+        data: { status: 'NOTIFIED', notifiedAt: new Date() },
+      });
+      void this.notifications.waitlistAvailable(nextInLine.user, booking.session.service.name, oldStartTime);
+    }
+
+    void this.notifications.bookingRescheduled(
+      booking.user,
+      newSession.service.name,
+      oldStartTime,
+      newSession.startTime,
+    );
+    if (needsCoachApproval && newSession.coach) {
+      void this.notifications.newAppointmentRequestForCoach(
+        newSession.coach,
+        newSession.service.name,
+        newSession.startTime,
+        `${booking.user.firstName} ${booking.user.lastName}`,
+      );
+    }
+
+    return updated;
   }
 
   /**

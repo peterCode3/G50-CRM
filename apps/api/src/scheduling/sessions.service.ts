@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { GlobalRole, LocationRole, Prisma } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { assertManagesLocation } from '../auth/location-access.util.js';
@@ -14,6 +14,19 @@ interface SessionInput {
   endTime: Date;
   capacity: number | null;
   recurrenceRule?: string;
+  bufferBeforeMinutes?: number;
+  bufferAfterMinutes?: number;
+}
+
+/** Spec §2/§4: a service can require sessions to start on a fixed grid (e.g. every 15 min). */
+function assertAlignedToInterval(startTime: Date, bookingIntervalMinutes: number | null): void {
+  if (!bookingIntervalMinutes) return;
+  const minutesSinceMidnight = startTime.getUTCHours() * 60 + startTime.getUTCMinutes();
+  if (minutesSinceMidnight % bookingIntervalMinutes !== 0) {
+    throw new BadRequestException(
+      `This service only accepts start times on a ${bookingIntervalMinutes}-minute grid`,
+    );
+  }
 }
 
 @Injectable()
@@ -26,6 +39,7 @@ export class SessionsService {
 
     const startTime = new Date(dto.startTime);
     const endTime = new Date(startTime.getTime() + service.durationMinutes * 60_000);
+    assertAlignedToInterval(startTime, service.bookingIntervalMinutes);
 
     return this.createSessionSafely({
       serviceId: service.id,
@@ -34,6 +48,8 @@ export class SessionsService {
       startTime,
       endTime,
       capacity: dto.capacity ?? service.capacity,
+      bufferBeforeMinutes: service.bufferBeforeMinutes,
+      bufferAfterMinutes: service.bufferAfterMinutes,
     });
   }
 
@@ -46,6 +62,10 @@ export class SessionsService {
     assertManagesLocation(user, service.locationId);
 
     const [hour, minute] = dto.startTime.split(':').map(Number);
+    assertAlignedToInterval(
+      new Date(Date.UTC(1970, 0, 1, hour, minute)),
+      service.bookingIntervalMinutes,
+    );
     const rangeStart = new Date(`${dto.rangeStart}T00:00:00.000Z`);
     const rangeEnd = new Date(`${dto.rangeEnd}T00:00:00.000Z`);
 
@@ -76,6 +96,8 @@ export class SessionsService {
           endTime,
           capacity: dto.capacity ?? service.capacity,
           recurrenceRule,
+          bufferBeforeMinutes: service.bufferBeforeMinutes,
+          bufferAfterMinutes: service.bufferAfterMinutes,
         });
         created.push({ id: session.id, startTime: session.startTime });
       } catch (err) {
@@ -217,12 +239,23 @@ export class SessionsService {
       return await this.prisma.client.$transaction(
         async (tx) => {
           if (input.coachId) {
+            // Pad this session's own window by its buffer times (spec §2/§4:
+            // "buffer time before/after") so a conflict is caught even when the
+            // two sessions' raw start/end times don't literally overlap.
+            // Simplification: only this session's buffers widen the check —
+            // an existing session's own buffer isn't re-applied here.
+            const paddedStart = new Date(
+              input.startTime.getTime() - (input.bufferBeforeMinutes ?? 0) * 60_000,
+            );
+            const paddedEnd = new Date(
+              input.endTime.getTime() + (input.bufferAfterMinutes ?? 0) * 60_000,
+            );
             const conflict = await tx.session.findFirst({
               where: {
                 coachId: input.coachId,
                 isCancelled: false,
-                startTime: { lt: input.endTime },
-                endTime: { gt: input.startTime },
+                startTime: { lt: paddedEnd },
+                endTime: { gt: paddedStart },
               },
             });
             if (conflict) {
@@ -230,9 +263,26 @@ export class SessionsService {
                 `Coach is already booked from ${conflict.startTime.toISOString()} to ${conflict.endTime.toISOString()}`,
               );
             }
+
+            const timeOff = await this.findTimeOffConflict(
+              tx,
+              input.coachId,
+              input.locationId,
+              paddedStart,
+              paddedEnd,
+            );
+            if (timeOff) {
+              throw new ConflictException(
+                `Coach is marked as unavailable from ${timeOff.startTime} to ${timeOff.endTime} on this day`,
+              );
+            }
           }
 
-          return tx.session.create({ data: input });
+          // bufferBeforeMinutes/bufferAfterMinutes live on Service, not
+          // Session — they're only carried on `input` to widen the conflict
+          // check above, and must not be spread into session.create's data.
+          const { bufferBeforeMinutes: _before, bufferAfterMinutes: _after, ...sessionData } = input;
+          return tx.session.create({ data: sessionData });
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
@@ -247,5 +297,53 @@ export class SessionsService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Checks a coach's declared time-off (spec §4) against a candidate session
+   * window. `CoachAvailability` rows store either a specific `date` (one-off
+   * time off) or a recurring `dayOfWeek`, plus a plain "HH:mm" start/end —
+   * interpreted in UTC, matching how recurring sessions are built from
+   * hour/minute above (`Date.UTC(...)`). Same-day sessions only; a session
+   * spanning midnight is evaluated against its start day.
+   */
+  private async findTimeOffConflict(
+    tx: Prisma.TransactionClient,
+    coachId: string,
+    locationId: string,
+    startTime: Date,
+    endTime: Date,
+  ): Promise<{ startTime: string; endTime: string } | null> {
+    const dayOfWeek = startTime.getUTCDay();
+    const dateOnly = new Date(
+      Date.UTC(startTime.getUTCFullYear(), startTime.getUTCMonth(), startTime.getUTCDate()),
+    );
+
+    const entries = await tx.coachAvailability.findMany({
+      where: {
+        userId: coachId,
+        locationId,
+        isTimeOff: true,
+        OR: [{ dayOfWeek }, { date: dateOnly }],
+      },
+    });
+    if (entries.length === 0) {
+      return null;
+    }
+
+    const toMinutes = (hhmm: string) => {
+      const [h, m] = hhmm.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const sessionStartMin = startTime.getUTCHours() * 60 + startTime.getUTCMinutes();
+    const sessionEndMin = endTime.getUTCHours() * 60 + endTime.getUTCMinutes();
+
+    return (
+      entries.find((entry) => {
+        const offStart = toMinutes(entry.startTime);
+        const offEnd = toMinutes(entry.endTime);
+        return sessionStartMin < offEnd && sessionEndMin > offStart;
+      }) ?? null
+    );
   }
 }

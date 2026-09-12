@@ -894,6 +894,90 @@ actually got built, since implementations may diverge slightly from the prompt).
     tracking ("skip this feature for now"). A broader per-role (Admin/Owner/Coach/Client)
     frontend UX review was also deferred to a future round.
 
+- **Golfer-facing redesign: inline booking, real account dashboard** — direct user feedback
+  that the location/classes page was confusing (a split catalog + separate schedule list, each
+  opening a different full-screen popup) and that My Account/My Bookings/Membership "didn't look
+  like a real booking site."
+  - Replaced `BookingModal` + `CheckoutModal` (both deleted) with a single `ServiceBookingCard`:
+    a per-service accordion that expands in place to show upcoming sessions, and expands further
+    per-session into an inline payment-method + confirm step with a loader — no modal anywhere in
+    the booking flow.
+  - My Account rebuilt as a real dashboard: quick-stat tiles (upcoming bookings, membership,
+    credits) linking onward, and an inline "Edit profile" form (no modal) reusing the existing
+    `PATCH /auth/me`.
+  - My Bookings and Membership pages restyled to match (gradient hero, consistent cards/icons);
+    My Bookings' "Upcoming" filter fixed to include `PENDING` appointment requests, not just
+    `CONFIRMED`.
+  - **Found and fixed a real gap while wiring the "Withdraw" button**: a `PENDING` appointment
+    request had no way to be cancelled by the golfer who made it — `cancel()` only allowed
+    `CONFIRMED` bookings. Extended it to also accept `PENDING`.
+  - Verified with a real Playwright run: expanded a service, booked a session, watched it land
+    `PENDING`, confirmed it appeared correctly on My Bookings with a working Withdraw button, and
+    edited a profile inline — all screenshotted.
+- **V1 spec compliance completion round** — a full line-by-line audit against the client's V1
+  Product Specification PDF (26 sections) turned up 13 concrete gaps; all but one (Stripe going
+  operationally live, which needs the client's own Stripe account) were closed in this round.
+  - **Reschedule** (missing from 4 separate spec sections): new `POST /bookings/:id/reschedule`
+    moves a booking to another session of the *same* service atomically — same capacity-safety
+    pattern as `create()`, frees the old seat to the waitlist, keeps the original price/payment
+    method. Golfer-facing inline UI on My Bookings (pick a new time, no modal). New
+    `bookingRescheduledEmail` notification.
+  - **Coach time-off enforcement**: `CoachAvailability.isTimeOff` was stored but never checked —
+    session creation now rejects a time slot that overlaps a coach's declared unavailability.
+  - **Buffer time / booking interval / "booking rules" enforcement**: `bufferBeforeMinutes` /
+    `bufferAfterMinutes` were settable via the API but never actually applied anywhere; a new
+    session's own buffer now widens the coach double-booking conflict window. `bookingIntervalMinutes`
+    now actually validates a session's start time lands on that grid. New `Service.minNoticeHours`
+    field enforces a minimum hours-ahead booking rule. All four fields now have real admin UI
+    (per-location Edit Service modal).
+  - **Membership auto-renewal + expiry**: `UserMembership.autoRenew` was a dead flag with no
+    automation. New daily `MembershipRenewalService` cron either renews (extends the billing
+    period, re-grants included credits, `membershipRenewedEmail`) or expires
+    (`membershipExpiredEmail`) every membership past its `endDate`. Golfers can now opt into
+    auto-renew at subscribe time via a checkbox on the Membership page.
+  - **Receipts/invoices**: new `GET /payments/:id` + a golfer-facing `/receipts/[id]` page — a
+    clean, printable receipt (itemized, Print/Save-as-PDF) linked from a new Payment History
+    section on My Account.
+  - **Manual credit adjustment by admin**: new `POST /customers/:id/credits/adjust` lets HQ/
+    Location Admin grant or deduct credits outside a purchase (goodwill credit, correcting an
+    error), with a reason recorded via `CreditTransaction` and a shortfall check on deduction.
+    Admin UI: an "Adjust" action on the customer detail page's Credit balances card.
+  - **Coach profile page**: `/staff` was list-only. New `GET /staff/:id` + `/staff/[id]` admin
+    page shows a coach's services delivered, upcoming schedule, and assigned clients — closing
+    the "services/classes delivered" and "assigned clients" spec bullets that had no UI at all.
+  - **Customer profile gaps**: attendance and payment history existed in the schema but were
+    never joined into the admin customer-detail response — both now included and rendered
+    (an Attendance column on booking history, a new Payment History table).
+  - **Reporting filters**: `customerId` added end-to-end (backend filter + a name/email lookup
+    control in the admin Reports page); the existing `serviceId`/`coachId` backend filters — which
+    had no UI at all — now have working dropdowns (populated once a location is selected, since
+    there's no network-wide "all services" listing to drive them otherwise).
+  - **Caught and fixed a real bug during curl verification**: the buffer-enforcement change
+    accidentally spread `bufferBeforeMinutes`/`bufferAfterMinutes` into `Session.create()`'s data
+    — those fields live on `Service`, not `Session` — causing a 500 on every session creation for
+    a service with buffers set. Caught immediately by testing the very feature that introduced it,
+    fixed by excluding them from the persisted data before the create call.
+  - **Two documentation gaps closed**: `docs/BACKUP-RECOVERY.md` (a concrete `pg_dump` schedule
+    and restore runbook for the current self-hosted Postgres, plus what changes on a managed
+    host) and `docs/PRIVACY-AND-DATA-HANDLING.md` (an Australian Privacy Principles–mapped
+    description of what's actually collected, who sees it, and what's still open — explicitly
+    flagged as engineering input for a lawyer to turn into a real policy, not a finished one).
+    `docs/USER-FLOWS.md` retroactively documents the 4 role-based flows spec §26 wanted as
+    pre-build wireframes — built after the fact, labelled as such.
+  - **Verified with curl across every new endpoint and rule** (not just the happy path):
+    booking-interval misalignment rejected, aligned time accepted; buffer-widened conflict
+    rejected, a session just outside the padded window accepted; time-off overlap rejected;
+    min-notice-hours violation rejected; reschedule to the same session/a different service both
+    rejected, a valid reschedule accepted and reflected correctly on My Bookings; credit
+    over-deduction rejected with the correct available balance; receipt endpoint returns full
+    detail to the payer and 403s an unrelated coach. Also verified visually with Playwright:
+    the reports page's new Service/Coach/Customer filters, the coach detail page, the customer
+    detail page's new Attendance/Payment History sections and Adjust-credits modal, the golfer
+    receipt page, and the edit-service form's four new fields.
+  - **Left for the client**: Stripe test/live keys still aren't in `apps/api/.env` — everything
+    else in this round is code-complete and verified, but real payments still can't be exercised
+    end-to-end without them.
+
 ---
 
 ## How to use this doc

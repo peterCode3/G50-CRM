@@ -5,6 +5,7 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import { BookingsService } from './bookings.service.js';
 import { CancelBookingDto } from './dto/cancel-booking.dto.js';
+import { RescheduleBookingDto } from './dto/reschedule-booking.dto.js';
 
 @Controller('bookings')
 export class BookingsController {
@@ -44,6 +45,16 @@ export class BookingsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.bookingsService.cancel(id, dto, user);
+  }
+
+  // No @Roles() — ownership (or HQ/Location Admin) is checked in the service.
+  @Post(':id/reschedule')
+  reschedule(
+    @Param('id') id: string,
+    @Body() dto: RescheduleBookingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.reschedule(id, dto, user);
   }
 
   // No @Roles() — assertCanManageSession (coach assigned, or HQ/Location Admin) is checked in the service.

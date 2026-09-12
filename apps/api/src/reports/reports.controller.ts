@@ -13,6 +13,7 @@ function readFilters(query: Record<string, string | undefined>): ReportFilters {
     to: query.to || undefined,
     serviceId: query.serviceId || undefined,
     coachId: query.coachId || undefined,
+    customerId: query.customerId || undefined,
   };
 }
 

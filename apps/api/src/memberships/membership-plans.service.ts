@@ -6,7 +6,7 @@ import type { AuthenticatedUser } from '../auth/types.js';
 import type { CreateMembershipPlanDto } from './dto/create-membership-plan.dto.js';
 import type { UpdateMembershipPlanDto } from './dto/update-membership-plan.dto.js';
 
-const BILLING_PERIOD_MS: Record<BillingPeriod, number | null> = {
+export const BILLING_PERIOD_MS: Record<BillingPeriod, number | null> = {
   NONE: null,
   WEEKLY: 7 * 24 * 60 * 60_000,
   MONTHLY: 30 * 24 * 60 * 60_000,
@@ -52,7 +52,7 @@ export class MembershipPlansService {
     return this.prisma.client.membershipPlan.update({ where: { id }, data: dto });
   }
 
-  async subscribe(planId: string, user: AuthenticatedUser) {
+  async subscribe(planId: string, user: AuthenticatedUser, autoRenew = false) {
     const plan = await this.findOne(planId);
     if (!plan.isActive) {
       throw new BadRequestException('This membership plan is no longer available');
@@ -70,7 +70,16 @@ export class MembershipPlansService {
     const endDate = periodMs != null ? new Date(startDate.getTime() + periodMs) : null;
 
     const membership = await this.prisma.client.userMembership.create({
-      data: { userId: user.id, planId, startDate, endDate, status: 'ACTIVE' },
+      // Auto-renew only makes sense for a plan that actually recurs — a
+      // one-off (NONE) billing period has nothing to renew into.
+      data: {
+        userId: user.id,
+        planId,
+        startDate,
+        endDate,
+        status: 'ACTIVE',
+        autoRenew: autoRenew && periodMs != null,
+      },
     });
 
     if (plan.includedCredits) {

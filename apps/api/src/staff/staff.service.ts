@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { GlobalRole, LocationRole } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -142,6 +142,101 @@ export class StaffService {
       byUser.set(link.user.id, entry);
     }
     return [...byUser.values()];
+  }
+
+  /**
+   * A single coach/location-admin's full profile — spec §5's "services/classes
+   * delivered", "availability/upcoming schedule" and "assigned clients", none
+   * of which the list view surfaces. HQ can view any staff member; a Location
+   * Admin only one who works at a location they manage.
+   */
+  async findOneForAdmin(userId: string, user: AuthenticatedUser) {
+    const links = await this.prisma.client.userLocation.findMany({
+      where: { userId, role: { in: [LocationRole.LOCATION_ADMIN, LocationRole.COACH] } },
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true, email: true, phone: true, isActive: true },
+        },
+        location: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (links.length === 0) {
+      throw new NotFoundException('Staff member not found');
+    }
+
+    const locationIds = links.map((l) => l.locationId);
+    if (user.globalRole !== GlobalRole.HQ_ADMIN) {
+      const managesAny = user.locations.some(
+        (l) => l.role === LocationRole.LOCATION_ADMIN && locationIds.includes(l.locationId),
+      );
+      if (!managesAny) {
+        throw new ForbiddenException('You do not manage a location this staff member works at');
+      }
+    }
+
+    const [serviceLinks, upcomingSessions, clientBookings] = await Promise.all([
+      this.prisma.client.serviceCoach.findMany({
+        where: { userId },
+        include: {
+          service: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              isActive: true,
+              location: { select: { id: true, name: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.client.session.findMany({
+        where: { coachId: userId, isCancelled: false, startTime: { gte: new Date() } },
+        include: {
+          service: { select: { name: true, type: true } },
+          location: { select: { name: true } },
+          _count: { select: { bookings: { where: { status: { in: ['CONFIRMED', 'PENDING'] } } } } },
+        },
+        orderBy: { startTime: 'asc' },
+        take: 50,
+      }),
+      this.prisma.client.booking.findMany({
+        where: {
+          status: { in: ['CONFIRMED', 'PENDING', 'COMPLETED'] },
+          session: { coachId: userId },
+        },
+        distinct: ['userId'],
+        select: {
+          user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+    ]);
+
+    const { user: profile } = links[0];
+    return {
+      ...profile,
+      roles: links.map((l) => ({ locationId: l.location.id, locationName: l.location.name, role: l.role })),
+      services: serviceLinks.map((sc) => ({
+        id: sc.service.id,
+        name: sc.service.name,
+        type: sc.service.type,
+        isActive: sc.service.isActive,
+        locationName: sc.service.location.name,
+      })),
+      upcomingSessions: upcomingSessions.map(({ _count, ...s }) => ({
+        id: s.id,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        capacity: s.capacity,
+        bookedCount: _count.bookings,
+        serviceName: s.service.name,
+        serviceType: s.service.type,
+        locationName: s.location.name,
+      })),
+      clients: clientBookings.map((b) => b.user),
+    };
   }
 
   /** Removes one (location, role) assignment — the account itself isn't deleted. */

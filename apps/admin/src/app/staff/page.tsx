@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Location, StaffDirectoryEntry } from "@/lib/types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -153,9 +154,9 @@ export default function StaffPage() {
                     {s.firstName.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-teal-900">
+                    <Link href={`/staff/${s.id}`} className="truncate font-medium text-teal-900 hover:underline">
                       {s.firstName} {s.lastName}
-                    </p>
+                    </Link>
                     <p className="truncate text-xs text-teal-700">{s.email}</p>
                     {s.phone && <p className="truncate text-xs text-teal-700">{s.phone}</p>}
                   </div>

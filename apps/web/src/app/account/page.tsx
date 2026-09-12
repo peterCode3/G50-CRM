@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError, type AuthenticatedUser } from "@/lib/api";
-import type { Booking, CreditBalance, Location, UserMembership } from "@/lib/types";
+import type { Booking, CreditBalance, Location, PaymentSummary, UserMembership } from "@/lib/types";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { Spinner } from "@/components/Spinner";
@@ -26,6 +26,7 @@ export default function AccountPage() {
   const [upcomingCount, setUpcomingCount] = useState(0);
   const [activeMembership, setActiveMembership] = useState<UserMembership | null>(null);
   const [totalCredits, setTotalCredits] = useState(0);
+  const [payments, setPayments] = useState<PaymentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -38,8 +39,9 @@ export default function AccountPage() {
       apiFetch<Booking[]>("/bookings/my"),
       apiFetch<UserMembership[]>("/memberships/my"),
       apiFetch<CreditBalance[]>("/credit-balances/my"),
+      apiFetch<PaymentSummary[]>("/payments/my"),
     ])
-      .then(([me, locs, bookings, memberships, balances]) => {
+      .then(([me, locs, bookings, memberships, balances, paymentHistory]) => {
         setUser(me);
         setLocations(locs);
         const now = new Date();
@@ -48,6 +50,7 @@ export default function AccountPage() {
         );
         setActiveMembership(memberships.find((m) => m.status === "ACTIVE") ?? null);
         setTotalCredits(balances.reduce((sum, b) => sum + b.creditsRemaining, 0));
+        setPayments(paymentHistory);
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
@@ -216,6 +219,47 @@ export default function AccountPage() {
             </dl>
           )}
         </div>
+
+        {payments.length > 0 && (
+          <div className="animate-fade-in-up mt-6 rounded-xl border border-teal-100 bg-white p-6 shadow-sm">
+            <h2 className="font-display text-lg font-semibold text-teal-900">Payment history</h2>
+            <ul className="mt-4 flex flex-col divide-y divide-teal-50">
+              {payments.map((p) => (
+                <li key={p.id} className="flex items-center justify-between py-2.5 text-sm">
+                  <div>
+                    <p className="text-teal-900">
+                      {p.purpose === "BOOKING" ? "Booking" : p.purpose === "MEMBERSHIP" ? "Membership" : "Credit package"}
+                    </p>
+                    <p className="text-xs text-teal-700">
+                      {new Date(p.createdAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium text-teal-900">
+                      ${p.amount} {p.currency}
+                    </span>
+                    <Badge
+                      variant={
+                        p.status === "PAID" ? "success" : p.status === "REFUNDED" ? "neutral" : p.status === "FAILED" ? "danger" : "gold"
+                      }
+                    >
+                      {p.status}
+                    </Badge>
+                    {p.status === "PAID" && (
+                      <Link href={`/receipts/${p.id}`} className="text-xs font-medium text-teal-700 hover:underline">
+                        Receipt
+                      </Link>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <Button
           variant="secondary"

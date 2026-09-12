@@ -80,6 +80,7 @@ export interface UserMembership {
   planId: string;
   startDate: string;
   endDate: string | null;
+  autoRenew: boolean;
   status: "ACTIVE" | "EXPIRED" | "CANCELLED";
   plan: MembershipPlan;
 }
@@ -104,3 +105,27 @@ export interface CreditBalance {
 }
 
 export type BookingPaymentMethod = "FULL_PRICE" | "MEMBERSHIP" | "CREDIT";
+
+export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+export type PaymentPurpose = "BOOKING" | "MEMBERSHIP" | "PACKAGE";
+
+export interface PaymentSummary {
+  id: string;
+  amount: string;
+  currency: string;
+  status: PaymentStatus;
+  purpose: PaymentPurpose;
+  createdAt: string;
+}
+
+export interface PaymentReceipt extends PaymentSummary {
+  provider: string;
+  providerRef: string | null;
+  user: { firstName: string; lastName: string; email: string };
+  booking: {
+    location: { name: string };
+    session: { startTime: string; service: { name: string; type: "CLASS" | "APPOINTMENT" } };
+  } | null;
+  userMembership: { plan: { name: string } } | null;
+  creditBalance: { package: { name: string } | null } | null;
+}

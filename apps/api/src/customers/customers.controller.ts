@@ -6,6 +6,7 @@ import type { AuthenticatedUser } from '../auth/types.js';
 import { CustomersService } from './customers.service.js';
 import { CreateCustomerDto } from './dto/create-customer.dto.js';
 import { UpdateCustomerDto } from './dto/update-customer.dto.js';
+import { AdjustCreditsDto } from './dto/adjust-credits.dto.js';
 
 @Controller('customers')
 export class CustomersController {
@@ -45,5 +46,15 @@ export class CustomersController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.customersService.updateCustomer(id, dto, user);
+  }
+
+  @Roles(GlobalRole.HQ_ADMIN, LocationRole.LOCATION_ADMIN)
+  @Post(':id/credits/adjust')
+  adjustCredits(
+    @Param('id') id: string,
+    @Body() dto: AdjustCreditsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.customersService.adjustCredits(id, dto, user);
   }
 }

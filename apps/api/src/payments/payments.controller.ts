@@ -84,4 +84,10 @@ export class PaymentsController {
   refund(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.paymentsService.refund(id, user);
   }
+
+  // No @Roles() — ownership (or HQ/Location Admin) is checked in the service.
+  @Get(':id')
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.paymentsService.findOneForReceipt(id, user);
+  }
 }

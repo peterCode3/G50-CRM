@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import type { Location, ReportOverview } from "@/lib/types";
+import type { CustomerSummary, Location, ReportOverview, Service, StaffMember } from "@/lib/types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/Card";
@@ -59,6 +59,14 @@ export default function ReportsPage() {
   const [locationId, setLocationId] = useState<string>("");
   const [from, setFrom] = useState(defaultFrom());
   const [to, setTo] = useState(defaultTo());
+  const [services, setServices] = useState<Service[]>([]);
+  const [coaches, setCoaches] = useState<StaffMember[]>([]);
+  const [serviceId, setServiceId] = useState("");
+  const [coachId, setCoachId] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerId, setCustomerId] = useState("");
+  const [customerLabel, setCustomerLabel] = useState("");
+  const [customerError, setCustomerError] = useState<string | null>(null);
 
   const isHqAdmin = user?.globalRole === "HQ_ADMIN";
 
@@ -77,13 +85,56 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Service/coach filters only make sense once a single location is picked —
+  // there's no network-wide "all services" listing endpoint to populate them from otherwise.
+  useEffect(() => {
+    setServiceId("");
+    setCoachId("");
+    if (!locationId) {
+      setServices([]);
+      setCoaches([]);
+      return;
+    }
+    apiFetch<Service[]>(`/locations/${locationId}/services`).then(setServices).catch(() => setServices([]));
+    apiFetch<StaffMember[]>(`/locations/${locationId}/staff`)
+      .then((staff) => setCoaches(staff.filter((s) => s.role === "COACH")))
+      .catch(() => setCoaches([]));
+  }, [locationId]);
+
+  async function onApplyCustomerFilter() {
+    setCustomerError(null);
+    const term = customerSearch.trim();
+    if (!term) {
+      setCustomerId("");
+      setCustomerLabel("");
+      return;
+    }
+    try {
+      const matches = await apiFetch<CustomerSummary[]>(
+        `/customers/admin/all?search=${encodeURIComponent(term)}`,
+      );
+      const exact = matches.find((m) => m.email.toLowerCase() === term.toLowerCase()) ?? matches[0];
+      if (!exact) {
+        setCustomerError("No customer found with that name or email");
+        return;
+      }
+      setCustomerId(exact.id);
+      setCustomerLabel(`${exact.firstName} ${exact.lastName}`);
+    } catch {
+      setCustomerError("Couldn't look up that customer");
+    }
+  }
+
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
     if (locationId) params.set("locationId", locationId);
     if (from) params.set("from", new Date(`${from}T00:00:00.000Z`).toISOString());
     if (to) params.set("to", new Date(`${to}T23:59:59.999Z`).toISOString());
+    if (serviceId) params.set("serviceId", serviceId);
+    if (coachId) params.set("coachId", coachId);
+    if (customerId) params.set("customerId", customerId);
     return params.toString();
-  }, [locationId, from, to]);
+  }, [locationId, from, to, serviceId, coachId, customerId]);
 
   useEffect(() => {
     if (!user) return;
@@ -161,6 +212,77 @@ export default function ReportsPage() {
                 onChange={(e) => setTo(e.target.value)}
                 className="rounded-md border border-teal-200 px-3 py-1.5 text-sm text-teal-900"
               />
+            </label>
+            {locationId && services.length > 0 && (
+              <label className="flex flex-col gap-1 text-xs font-medium text-teal-700">
+                Service
+                <select
+                  value={serviceId}
+                  onChange={(e) => setServiceId(e.target.value)}
+                  className="rounded-md border border-teal-200 px-3 py-1.5 text-sm text-teal-900"
+                >
+                  <option value="">All services</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {locationId && coaches.length > 0 && (
+              <label className="flex flex-col gap-1 text-xs font-medium text-teal-700">
+                Coach
+                <select
+                  value={coachId}
+                  onChange={(e) => setCoachId(e.target.value)}
+                  className="rounded-md border border-teal-200 px-3 py-1.5 text-sm text-teal-900"
+                >
+                  <option value="">All coaches</option>
+                  {coaches.map((c) => (
+                    <option key={c.userId} value={c.userId}>
+                      {c.firstName} {c.lastName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="flex flex-col gap-1 text-xs font-medium text-teal-700">
+              Customer
+              <div className="flex items-center gap-1.5">
+                <input
+                  placeholder="Name or email..."
+                  value={customerLabel || customerSearch}
+                  onChange={(e) => {
+                    setCustomerLabel("");
+                    setCustomerSearch(e.target.value);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && onApplyCustomerFilter()}
+                  className="w-48 rounded-md border border-teal-200 px-3 py-1.5 text-sm text-teal-900"
+                />
+                {customerId ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomerId("");
+                      setCustomerLabel("");
+                      setCustomerSearch("");
+                    }}
+                    className="text-xs text-teal-600 hover:underline"
+                  >
+                    Clear
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onApplyCustomerFilter}
+                    className="text-xs text-teal-600 hover:underline"
+                  >
+                    Apply
+                  </button>
+                )}
+              </div>
+              {customerError && <span className="text-xs text-red-600">{customerError}</span>}
             </label>
             {loadingOverview && <Spinner />}
           </div>

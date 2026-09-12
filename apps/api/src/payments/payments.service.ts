@@ -169,6 +169,40 @@ export class PaymentsService {
   }
 
   /**
+   * Single payment detail for the receipt page — the payer, HQ, or a
+   * Location Admin managing the linked booking's location may view it.
+   */
+  async findOneForReceipt(id: string, user: AuthenticatedUser) {
+    const payment = await this.prisma.client.payment.findUnique({
+      where: { id },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        booking: {
+          include: {
+            location: { select: { id: true, name: true } },
+            session: { include: { service: { select: { name: true, type: true } } } },
+          },
+        },
+        userMembership: { include: { plan: { select: { name: true } } } },
+        creditBalance: { include: { package: { select: { name: true } } } },
+      },
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    if (payment.userId !== user.id) {
+      if (payment.booking) {
+        assertManagesLocation(user, payment.booking.locationId);
+      } else if (user.globalRole !== GlobalRole.HQ_ADMIN) {
+        throw new ForbiddenException('You cannot view this payment');
+      }
+    }
+
+    return payment;
+  }
+
+  /**
    * Network-wide (HQ) or location-scoped (Location Admin) payment list — the
    * admin "Payments" page. A Location Admin only ever sees booking-linked
    * payments at locations they manage — membership/package payments aren't

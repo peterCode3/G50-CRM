@@ -28,6 +28,12 @@ export class StaffController {
   }
 
   @Roles(GlobalRole.HQ_ADMIN, LocationRole.LOCATION_ADMIN)
+  @Get('staff/:userId')
+  findOneForAdmin(@Param('userId') userId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.staffService.findOneForAdmin(userId, user);
+  }
+
+  @Roles(GlobalRole.HQ_ADMIN, LocationRole.LOCATION_ADMIN)
   @Delete('staff/:userId/locations/:locationId/roles/:role')
   removeRole(
     @Param('userId') userId: string,

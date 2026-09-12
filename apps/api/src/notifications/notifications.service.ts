@@ -7,7 +7,10 @@ import {
   bookingConfirmationEmail,
   bookingDeclinedEmail,
   bookingReminderEmail,
+  bookingRescheduledEmail,
   membershipConfirmationEmail,
+  membershipExpiredEmail,
+  membershipRenewedEmail,
   newAppointmentRequestForCoachEmail,
   packageConfirmationEmail,
   paymentConfirmationEmail,
@@ -48,6 +51,26 @@ export class NotificationsService {
       serviceName,
       startTime,
     });
+    return this.mail.send(to.email, subject, html);
+  }
+
+  bookingRescheduled(to: Recipient, serviceName: string, oldStartTime: Date, newStartTime: Date) {
+    const { subject, html } = bookingRescheduledEmail({
+      firstName: to.firstName,
+      serviceName,
+      oldStartTime,
+      newStartTime,
+    });
+    return this.mail.send(to.email, subject, html);
+  }
+
+  membershipExpired(to: Recipient, planName: string) {
+    const { subject, html } = membershipExpiredEmail({ firstName: to.firstName, planName });
+    return this.mail.send(to.email, subject, html);
+  }
+
+  membershipRenewed(to: Recipient, planName: string) {
+    const { subject, html } = membershipRenewedEmail({ firstName: to.firstName, planName });
     return this.mail.send(to.email, subject, html);
   }
 

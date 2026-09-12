@@ -10,6 +10,7 @@ export interface ReportFilters {
   to?: string;
   serviceId?: string;
   coachId?: string;
+  customerId?: string;
 }
 
 const BOOKING_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'WAITLISTED', 'COMPLETED', 'NO_SHOW'] as const;
@@ -80,6 +81,7 @@ export class ReportsService {
         ...(locationIds ? { locationId: { in: locationIds } } : {}),
         ...(filters.serviceId ? { session: { serviceId: filters.serviceId } } : {}),
         ...(filters.coachId ? { session: { coachId: filters.coachId } } : {}),
+        ...(filters.customerId ? { userId: filters.customerId } : {}),
       },
       include: {
         attendance: true,
@@ -260,6 +262,7 @@ export class ReportsService {
         ...(locationIds ? { locationId: { in: locationIds } } : {}),
         ...(filters.serviceId ? { session: { serviceId: filters.serviceId } } : {}),
         ...(filters.coachId ? { session: { coachId: filters.coachId } } : {}),
+        ...(filters.customerId ? { userId: filters.customerId } : {}),
       },
       include: {
         user: { select: { firstName: true, lastName: true, email: true } },

@@ -119,6 +119,48 @@ export function bookingDeclinedEmail(params: {
   };
 }
 
+export function bookingRescheduledEmail(params: {
+  firstName: string;
+  serviceName: string;
+  oldStartTime: Date;
+  newStartTime: Date;
+}) {
+  return {
+    subject: `Booking rescheduled: ${params.serviceName}`,
+    html: layout(
+      'Booking rescheduled',
+      `<p>Hi ${params.firstName},</p>
+       <p>Your <strong>${params.serviceName}</strong> booking has moved from
+       <strong>${formatWhen(params.oldStartTime)}</strong> to
+       <strong>${formatWhen(params.newStartTime)}</strong>.</p>`,
+    ),
+  };
+}
+
+export function membershipExpiredEmail(params: { firstName: string; planName: string }) {
+  return {
+    subject: `Membership expired: ${params.planName}`,
+    html: layout(
+      'Membership expired',
+      `<p>Hi ${params.firstName},</p>
+       <p>Your <strong>${params.planName}</strong> membership has expired. Renew it any time from
+       the Membership page to keep your member pricing and access.</p>`,
+    ),
+  };
+}
+
+export function membershipRenewedEmail(params: { firstName: string; planName: string }) {
+  return {
+    subject: `Membership renewed: ${params.planName}`,
+    html: layout(
+      'Membership renewed',
+      `<p>Hi ${params.firstName},</p>
+       <p>Your <strong>${params.planName}</strong> membership has been automatically renewed for
+       another billing period.</p>`,
+    ),
+  };
+}
+
 export function waitlistAvailableEmail(params: {
   firstName: string;
   serviceName: string;

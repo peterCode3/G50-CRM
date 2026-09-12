@@ -4,9 +4,11 @@ import { GlobalRole, LocationRole } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { resolveLocationScope } from '../auth/location-access.util.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { CreditsService } from '../credits/credits.service.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { CreateCustomerDto } from './dto/create-customer.dto.js';
 import type { UpdateCustomerDto } from './dto/update-customer.dto.js';
+import type { AdjustCreditsDto } from './dto/adjust-credits.dto.js';
 
 const SALT_ROUNDS = 12;
 
@@ -20,6 +22,7 @@ export class CustomersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly creditsService: CreditsService,
   ) {}
 
   async createCustomer(dto: CreateCustomerDto) {
@@ -95,11 +98,20 @@ export class CustomersService {
           include: {
             location: { select: { id: true, name: true } },
             session: { include: { service: { select: { name: true, type: true } } } },
+            attendance: true,
           },
           orderBy: { createdAt: 'desc' },
         },
         memberships: { include: { plan: true }, orderBy: { createdAt: 'desc' } },
         creditBalances: { include: { package: true }, orderBy: { createdAt: 'desc' } },
+        payments: {
+          include: {
+            booking: { include: { session: { include: { service: { select: { name: true } } } } } },
+            userMembership: { include: { plan: { select: { name: true } } } },
+            creditBalance: { include: { package: { select: { name: true } } } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
     if (!customer || customer.globalRole !== GlobalRole.CUSTOMER) {
@@ -132,6 +144,19 @@ export class CustomersService {
 
     const { passwordHash: _passwordHash, ...safeCustomer } = updated;
     return safeCustomer;
+  }
+
+  async adjustCredits(id: string, dto: AdjustCreditsDto, user: AuthenticatedUser) {
+    const customer = await this.prisma.client.user.findUnique({
+      where: { id },
+      include: { bookings: { select: { locationId: true } } },
+    });
+    if (!customer || customer.globalRole !== GlobalRole.CUSTOMER) {
+      throw new NotFoundException('Customer not found');
+    }
+    this.assertCanAccessCustomer(user, customer.bookings);
+
+    return this.creditsService.adjustBalance(id, dto.delta, dto.reason, user.id);
   }
 
   private assertCanAccessCustomer(

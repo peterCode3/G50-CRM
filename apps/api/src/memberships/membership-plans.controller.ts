@@ -7,6 +7,7 @@ import type { AuthenticatedUser } from '../auth/types.js';
 import { MembershipPlansService } from './membership-plans.service.js';
 import { CreateMembershipPlanDto } from './dto/create-membership-plan.dto.js';
 import { UpdateMembershipPlanDto } from './dto/update-membership-plan.dto.js';
+import { SubscribeMembershipDto } from './dto/subscribe-membership.dto.js';
 
 @Controller('membership-plans')
 export class MembershipPlansController {
@@ -45,7 +46,11 @@ export class MembershipPlansController {
 
   // No @Roles() — any authenticated golfer can subscribe themselves.
   @Post(':id/subscribe')
-  subscribe(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.subscribe(id, user);
+  subscribe(
+    @Param('id') id: string,
+    @Body() dto: SubscribeMembershipDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.subscribe(id, user, dto.autoRenew ?? false);
   }
 }

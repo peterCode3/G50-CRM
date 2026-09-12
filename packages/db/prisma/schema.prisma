@@ -203,6 +203,7 @@ model Service {
   bufferBeforeMinutes Int         @default(0)
   bufferAfterMinutes  Int         @default(0)
   bookingIntervalMinutes Int?
+  minNoticeHours      Int?
   images              String[]    @default([])
   isActive            Boolean     @default(true)
   createdAt           DateTime    @default(now())

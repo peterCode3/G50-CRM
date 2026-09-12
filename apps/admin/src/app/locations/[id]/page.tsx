@@ -702,6 +702,10 @@ function EditServiceModal({
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
   const [memberPrice, setMemberPrice] = useState("");
+  const [bufferBeforeMinutes, setBufferBeforeMinutes] = useState("0");
+  const [bufferAfterMinutes, setBufferAfterMinutes] = useState("0");
+  const [bookingIntervalMinutes, setBookingIntervalMinutes] = useState("");
+  const [minNoticeHours, setMinNoticeHours] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -713,6 +717,10 @@ function EditServiceModal({
     setCapacity(service.capacity != null ? String(service.capacity) : "");
     setPrice(service.price);
     setMemberPrice(service.memberPrice ?? "");
+    setBufferBeforeMinutes(String(service.bufferBeforeMinutes ?? 0));
+    setBufferAfterMinutes(String(service.bufferAfterMinutes ?? 0));
+    setBookingIntervalMinutes(service.bookingIntervalMinutes != null ? String(service.bookingIntervalMinutes) : "");
+    setMinNoticeHours(service.minNoticeHours != null ? String(service.minNoticeHours) : "");
     setImages(service.images ?? []);
     setError(null);
   }, [service]);
@@ -733,6 +741,10 @@ function EditServiceModal({
           capacity: capacity ? Number(capacity) : undefined,
           price: Number(price),
           memberPrice: memberPrice ? Number(memberPrice) : undefined,
+          bufferBeforeMinutes: Number(bufferBeforeMinutes || 0),
+          bufferAfterMinutes: Number(bufferAfterMinutes || 0),
+          bookingIntervalMinutes: bookingIntervalMinutes ? Number(bookingIntervalMinutes) : null,
+          minNoticeHours: minNoticeHours ? Number(minNoticeHours) : null,
           images,
         }),
       });
@@ -803,6 +815,52 @@ function EditServiceModal({
               placeholder="Optional"
               value={memberPrice}
               onChange={(e) => setMemberPrice(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Buffer before (min)</span>
+            <input
+              type="number"
+              min={0}
+              value={bufferBeforeMinutes}
+              onChange={(e) => setBufferBeforeMinutes(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Buffer after (min)</span>
+            <input
+              type="number"
+              min={0}
+              value={bufferAfterMinutes}
+              onChange={(e) => setBufferAfterMinutes(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Booking interval (min)</span>
+            <input
+              type="number"
+              min={1}
+              placeholder="Any time"
+              value={bookingIntervalMinutes}
+              onChange={(e) => setBookingIntervalMinutes(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Min. booking notice (hrs)</span>
+            <input
+              type="number"
+              min={0}
+              placeholder="None"
+              value={minNoticeHours}
+              onChange={(e) => setMinNoticeHours(e.target.value)}
               className={inputClass}
             />
           </label>

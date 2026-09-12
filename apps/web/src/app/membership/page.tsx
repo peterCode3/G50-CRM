@@ -28,6 +28,7 @@ export default function MembershipPage() {
   const [payingBalanceId, setPayingBalanceId] = useState<string | null>(null);
   const [subscribingId, setSubscribingId] = useState<string | null>(null);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
+  const [autoRenewByPlan, setAutoRenewByPlan] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     load().catch(() => setError("Couldn't load memberships & packages — please refresh."));
@@ -66,6 +67,7 @@ export default function MembershipPage() {
     try {
       const membership = await apiFetch<UserMembership>(`/membership-plans/${planId}/subscribe`, {
         method: "POST",
+        body: JSON.stringify({ autoRenew: autoRenewByPlan[planId] ?? false }),
       });
       setNotice("Membership activated!");
       const plan = plans?.find((p) => p.id === planId);
@@ -185,6 +187,7 @@ export default function MembershipPage() {
                       <p className="font-medium text-teal-900">{m.plan.name}</p>
                       <p className="text-xs text-teal-700">
                         {m.plan.crossLocationAccess ? "All locations" : "Single location"}
+                        {m.autoRenew ? " · auto-renews" : ""}
                       </p>
                     </div>
                     <Badge variant="success">Active</Badge>
@@ -243,6 +246,19 @@ export default function MembershipPage() {
                     {plan.includedCredits ? ` · includes ${plan.includedCredits} credits` : ""}
                   </p>
                 </div>
+                {!isActive && plan.billingPeriod !== "NONE" && (
+                  <label className="mt-3 flex items-center gap-2 text-xs text-teal-700">
+                    <input
+                      type="checkbox"
+                      checked={autoRenewByPlan[plan.id] ?? false}
+                      onChange={(e) =>
+                        setAutoRenewByPlan((prev) => ({ ...prev, [plan.id]: e.target.checked }))
+                      }
+                      className="h-3.5 w-3.5 rounded border-teal-300 text-gold-600 focus:ring-gold-500/40"
+                    />
+                    Auto-renew each {plan.billingPeriod.toLowerCase()}
+                  </label>
+                )}
                 <Button
                   onClick={() => onSubscribe(plan.id)}
                   disabled={isActive || subscribingId === plan.id}

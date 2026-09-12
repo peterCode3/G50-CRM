@@ -49,6 +49,10 @@ export interface Service {
   capacity: number | null;
   price: string;
   memberPrice: string | null;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
+  bookingIntervalMinutes: number | null;
+  minNoticeHours: number | null;
   images: string[];
   isActive: boolean;
 }
@@ -69,6 +73,27 @@ export interface StaffDirectoryEntry {
   phone: string | null;
   isActive: boolean;
   roles: { locationId: string; locationName: string; role: "LOCATION_ADMIN" | "COACH" }[];
+}
+
+export interface StaffDetail extends StaffDirectoryEntry {
+  services: {
+    id: string;
+    name: string;
+    type: "CLASS" | "APPOINTMENT";
+    isActive: boolean;
+    locationName: string;
+  }[];
+  upcomingSessions: {
+    id: string;
+    startTime: string;
+    endTime: string;
+    capacity: number | null;
+    bookedCount: number;
+    serviceName: string;
+    serviceType: "CLASS" | "APPOINTMENT";
+    locationName: string;
+  }[];
+  clients: { id: string; firstName: string; lastName: string; email: string }[];
 }
 
 export interface MySession {
@@ -221,7 +246,7 @@ export interface CustomerDetail {
   gender: string | null;
   isActive: boolean;
   createdAt: string;
-  bookings: (Omit<AdminBooking, "user">)[];
+  bookings: (Omit<AdminBooking, "user"> & { attendance: { status: AttendanceStatus } | null })[];
   memberships: {
     id: string;
     status: "ACTIVE" | "EXPIRED" | "CANCELLED";
@@ -234,6 +259,17 @@ export interface CustomerDetail {
     creditsRemaining: number;
     expiresAt: string | null;
     package: CreditPackage | null;
+  }[];
+  payments: {
+    id: string;
+    amount: string;
+    currency: string;
+    status: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+    purpose: "BOOKING" | "MEMBERSHIP" | "PACKAGE";
+    createdAt: string;
+    booking: { session: { service: { name: string } } } | null;
+    userMembership: { plan: { name: string } } | null;
+    creditBalance: { package: { name: string } | null } | null;
   }[];
 }
 

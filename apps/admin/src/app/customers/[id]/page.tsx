@@ -29,6 +29,7 @@ export default function CustomerDetailPage() {
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [showAdjustCredits, setShowAdjustCredits] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
 
@@ -184,7 +185,17 @@ export default function CustomerDetailPage() {
               )}
             </Card>
 
-            <Card title="Credit balances">
+            <Card
+              title="Credit balances"
+              action={
+                <button
+                  onClick={() => setShowAdjustCredits(true)}
+                  className="rounded-md px-2 py-1 text-xs font-medium text-teal-700 transition hover:bg-teal-50"
+                >
+                  Adjust
+                </button>
+              }
+            >
               {customer.creditBalances.length === 0 ? (
                 <p className="text-sm text-teal-700">No credit balances.</p>
               ) : (
@@ -217,6 +228,7 @@ export default function CustomerDetailPage() {
                       <th className="py-2 pr-4">Location</th>
                       <th className="py-2 pr-4">Session</th>
                       <th className="py-2 pr-4">Status</th>
+                      <th className="py-2 pr-4">Attendance</th>
                       <th className="py-2 pr-4">Price</th>
                     </tr>
                   </thead>
@@ -236,8 +248,71 @@ export default function CustomerDetailPage() {
                         <td className="py-2.5 pr-4">
                           <Badge variant={BOOKING_STATUS_VARIANT[b.status]}>{b.status.replace("_", " ")}</Badge>
                         </td>
+                        <td className="py-2.5 pr-4">
+                          {b.attendance ? (
+                            <Badge variant={b.attendance.status === "ATTENDED" ? "success" : "warning"}>
+                              {b.attendance.status.replace("_", " ")}
+                            </Badge>
+                          ) : (
+                            <span className="text-teal-700/50">—</span>
+                          )}
+                        </td>
                         <td className="py-2.5 pr-4 text-teal-700">
                           {b.priceCharged ? `$${b.priceCharged}` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </Card>
+
+            <Card title={`Payment history (${customer.payments.length})`}>
+              {customer.payments.length === 0 ? (
+                <p className="text-sm text-teal-700">No payments yet.</p>
+              ) : (
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-teal-50 text-xs font-semibold tracking-wide text-teal-700 uppercase">
+                      <th className="py-2 pr-4">Item</th>
+                      <th className="py-2 pr-4">Date</th>
+                      <th className="py-2 pr-4">Status</th>
+                      <th className="py-2 pr-4">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-teal-50">
+                    {customer.payments.map((p) => (
+                      <tr key={p.id}>
+                        <td className="py-2.5 pr-4 text-teal-900">
+                          {p.booking?.session.service.name ??
+                            p.userMembership?.plan.name ??
+                            p.creditBalance?.package?.name ??
+                            p.purpose}
+                        </td>
+                        <td className="py-2.5 pr-4 text-teal-700">
+                          {new Date(p.createdAt).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </td>
+                        <td className="py-2.5 pr-4">
+                          <Badge
+                            variant={
+                              p.status === "PAID"
+                                ? "success"
+                                : p.status === "REFUNDED"
+                                  ? "neutral"
+                                  : p.status === "FAILED"
+                                    ? "danger"
+                                    : "gold"
+                            }
+                          >
+                            {p.status}
+                          </Badge>
+                        </td>
+                        <td className="py-2.5 pr-4 text-teal-700">
+                          ${p.amount} {p.currency}
                         </td>
                       </tr>
                     ))}
@@ -255,7 +330,103 @@ export default function CustomerDetailPage() {
         onClose={() => setShowEdit(false)}
         onSaved={load}
       />
+      <AdjustCreditsModal
+        open={showAdjustCredits}
+        customerId={customer.id}
+        onClose={() => setShowAdjustCredits(false)}
+        onSaved={load}
+      />
     </>
+  );
+}
+
+function AdjustCreditsModal({
+  open,
+  customerId,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  customerId: string;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [delta, setDelta] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setDelta("");
+    setReason("");
+    setError(null);
+  }, [open]);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const value = Number(delta);
+    if (!value) {
+      setError("Enter a non-zero number of credits");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await apiFetch(`/customers/${customerId}/credits/adjust`, {
+        method: "POST",
+        body: JSON.stringify({ delta: value, reason }),
+      });
+      onClose();
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Adjust credits"
+      description="Manually grant or remove credits, outside a purchase — e.g. a goodwill credit or correcting an error."
+    >
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Amount</span>
+          <input
+            required
+            type="number"
+            placeholder="e.g. 3 to add, -1 to remove"
+            value={delta}
+            onChange={(e) => setDelta(e.target.value)}
+            className="rounded-md border border-teal-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+          />
+          <span className="text-xs text-teal-700">Positive to add credits, negative to remove.</span>
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Reason</span>
+          <input
+            required
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Goodwill credit for cancelled class"
+            className="rounded-md border border-teal-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+          />
+        </label>
+        {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Apply"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

@@ -188,6 +188,14 @@ export function ServiceBookingCard({
             ${service.price} · {service.durationMinutes} min
             {sessions.length > 0 && ` · ${sessions.length} upcoming`}
           </p>
+          {staffOptions.length > 0 && (
+            <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-teal-700/80">
+              <UsersIcon className="h-3 w-3 shrink-0" />
+              {staffOptions.length === 1
+                ? staffOptions[0][1]
+                : `${staffOptions.length} coaches: ${staffOptions.map(([, name]) => name).join(", ")}`}
+            </p>
+          )}
         </div>
 
         <ChevronDownIcon

@@ -34,6 +34,7 @@ export interface AuthenticatedUser {
   email: string;
   firstName: string;
   lastName: string;
+  phone: string | null;
   globalRole: "HQ_ADMIN" | "LOCATION_ADMIN" | "COACH" | "CUSTOMER";
   locations: { locationId: string; role: "LOCATION_ADMIN" | "COACH" | "CUSTOMER" }[];
 }

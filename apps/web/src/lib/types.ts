@@ -1,10 +1,25 @@
+export interface DayHours {
+  closed: boolean;
+  open: string;
+  close: string;
+}
+
+export type OpeningHours = Record<
+  "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday",
+  DayHours
+>;
+
 export interface Location {
   id: string;
   name: string;
   slug: string;
   address: string | null;
+  phone: string | null;
+  email: string | null;
   description: string | null;
+  logoUrl: string | null;
   images: string[];
+  openingHours: OpeningHours | null;
   isActive: boolean;
 }
 

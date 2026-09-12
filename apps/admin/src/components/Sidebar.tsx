@@ -97,10 +97,17 @@ export function Sidebar() {
 
       {user && (
         <div className="border-t border-teal-700/60 px-4 py-4">
-          <p className="truncate text-sm font-medium text-white">
-            {user.firstName} {user.lastName}
-          </p>
-          <p className="truncate text-xs text-teal-50/60">{user.globalRole.replace("_", " ")}</p>
+          <Link
+            href="/profile"
+            className={`-mx-2 flex flex-col rounded-md px-2 py-1 transition hover:bg-teal-700/40 ${
+              pathname === "/profile" ? "bg-teal-700/40" : ""
+            }`}
+          >
+            <p className="truncate text-sm font-medium text-white">
+              {user.firstName} {user.lastName}
+            </p>
+            <p className="truncate text-xs text-teal-50/60">{user.globalRole.replace("_", " ")}</p>
+          </Link>
           <button
             onClick={onLogout}
             disabled={loggingOut}

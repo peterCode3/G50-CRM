@@ -3,17 +3,55 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { apiFetch, type AuthenticatedUser } from "@/lib/api";
+import { apiFetch, resolveImageUrl, type AuthenticatedUser } from "@/lib/api";
 import type {
   CreditBalance,
   Location,
+  OpeningHours,
   Service,
   SessionWithAvailability,
   UserMembership,
 } from "@/lib/types";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { ServiceBookingCard } from "@/components/ServiceBookingCard";
-import { PinIcon } from "@/components/icons";
+import { ChevronDownIcon, MailIcon, PinIcon } from "@/components/icons";
+
+const DAY_KEYS: (keyof OpeningHours)[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+const DAY_LABELS: Record<keyof OpeningHours, string> = {
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday",
+  sunday: "Sunday",
+};
+
+function formatHour(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const period = h >= 12 ? "pm" : "am";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return m === 0 ? `${hour12}${period}` : `${hour12}:${String(m).padStart(2, "0")}${period}`;
+}
+
+function isOpenNow(hours: OpeningHours): boolean {
+  const now = new Date();
+  const key = DAY_KEYS[(now.getDay() + 6) % 7]; // Date#getDay is 0=Sunday; align to Monday-first
+  const today = hours[key];
+  if (today.closed) return false;
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  const [oh, om] = today.open.split(":").map(Number);
+  const [ch, cm] = today.close.split(":").map(Number);
+  return minutesNow >= oh * 60 + om && minutesNow < ch * 60 + cm;
+}
 
 function isEligibleMembership(service: Service, myMemberships: UserMembership[]): boolean {
   const now = new Date();
@@ -53,6 +91,7 @@ export default function LocationDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"ALL" | "CLASS" | "APPOINTMENT">("ALL");
+  const [showHours, setShowHours] = useState(false);
 
   useEffect(() => {
     load().catch(() => setError("Couldn't load this location — please refresh."));
@@ -157,24 +196,97 @@ export default function LocationDetailPage() {
     { key: "APPOINTMENT", label: "Appointments", count: counts.APPOINTMENT },
   ];
 
+  const coverImage = location.images[0];
+  const openNow = location.openingHours ? isOpenNow(location.openingHours) : null;
+
   return (
     <main className="flex flex-1 flex-col bg-teal-50/40">
-      <section className="border-b border-teal-100 bg-gradient-to-br from-teal-900 to-teal-700 px-6 py-12">
-        <div className="mx-auto max-w-4xl">
+      <section className="relative overflow-hidden border-b border-teal-100 px-6 py-14">
+        {coverImage ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={resolveImageUrl(coverImage)}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-teal-950/90 via-teal-900/70 to-teal-900/40" />
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-teal-900 to-teal-700" />
+        )}
+
+        <div className="relative mx-auto max-w-4xl">
           <Link
             href="/"
             className="text-sm text-teal-100/80 transition hover:text-white hover:underline"
           >
             ← All locations
           </Link>
-          <h1 className="animate-fade-in-up font-display mt-2 text-3xl font-semibold text-white">
-            {location.name}
-          </h1>
-          {location.address && (
-            <p className="animate-fade-in-up mt-2 flex items-center gap-1.5 text-teal-100">
-              <PinIcon className="h-4 w-4 shrink-0" />
-              {location.address}
-            </p>
+          <div className="mt-2 flex items-center gap-3">
+            {location.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={resolveImageUrl(location.logoUrl)}
+                alt=""
+                className="h-12 w-12 shrink-0 rounded-full border-2 border-white/70 bg-white object-contain p-1 shadow-lg"
+              />
+            )}
+            <h1 className="animate-fade-in-up font-display text-3xl font-semibold text-white">
+              {location.name}
+            </h1>
+          </div>
+
+          <div className="animate-fade-in-up mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-teal-100">
+            {location.address && (
+              <span className="flex items-center gap-1.5">
+                <PinIcon className="h-3.5 w-3.5 shrink-0" />
+                {location.address}
+              </span>
+            )}
+            {location.phone && (
+              <a href={`tel:${location.phone}`} className="flex items-center gap-1.5 hover:text-white hover:underline">
+                {location.phone}
+              </a>
+            )}
+            {location.email && (
+              <a href={`mailto:${location.email}`} className="flex items-center gap-1.5 hover:text-white hover:underline">
+                <MailIcon className="h-3.5 w-3.5 shrink-0" />
+                {location.email}
+              </a>
+            )}
+            {location.openingHours && (
+              <button
+                onClick={() => setShowHours((v) => !v)}
+                className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-0.5 font-medium text-white transition hover:bg-white/20"
+              >
+                {openNow ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
+                ) : (
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
+                )}
+                {openNow ? "Open now" : "Closed now"}
+                <ChevronDownIcon
+                  className={`h-3 w-3 transition-transform ${showHours ? "rotate-180" : ""}`}
+                />
+              </button>
+            )}
+          </div>
+
+          {showHours && location.openingHours && (
+            <div className="animate-fade-in-up mt-3 grid max-w-xs grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-white/10 p-3 text-xs text-teal-50 backdrop-blur-sm">
+              {DAY_KEYS.map((key) => {
+                const day = location.openingHours![key];
+                return (
+                  <div key={key} className="flex items-center justify-between gap-2">
+                    <span>{DAY_LABELS[key]}</span>
+                    <span className="text-teal-100/80">
+                      {day.closed ? "Closed" : `${formatHour(day.open)} – ${formatHour(day.close)}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </section>
@@ -223,6 +335,7 @@ export default function LocationDetailPage() {
                 sessions={sessionsByService[svc.id] ?? []}
                 hasEligibleMembership={isEligibleMembership(svc, myMemberships)}
                 hasEligibleCredit={isEligibleCredit(svc, myBalances)}
+                defaultOpen={svc.type === "CLASS"}
                 onGate={gate}
                 onRefresh={() => refreshSessionsFor(svc.id)}
               />

@@ -8,9 +8,12 @@ import type { BookingStatus, CustomerDetail } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
+import { Button } from "@/components/Button";
+import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
 
 const BOOKING_STATUS_VARIANT: Record<BookingStatus, "success" | "danger" | "neutral" | "warning" | "gold"> = {
+  PENDING: "gold",
   CONFIRMED: "success",
   COMPLETED: "success",
   CANCELLED: "danger",
@@ -18,18 +21,49 @@ const BOOKING_STATUS_VARIANT: Record<BookingStatus, "success" | "danger" | "neut
   WAITLISTED: "neutral",
 };
 
+const inputClass =
+  "rounded-md border border-teal-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
+
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  async function load() {
+    const result = await apiFetch<CustomerDetail>(`/customers/${id}`);
+    setCustomer(result);
+  }
 
   useEffect(() => {
-    apiFetch<CustomerDetail>(`/customers/${id}`)
-      .then(setCustomer)
-      .catch((err) =>
-        setError(err instanceof ApiError ? err.message : "Couldn't load this customer — please refresh."),
-      );
+    load().catch((err) =>
+      setError(err instanceof ApiError ? err.message : "Couldn't load this customer — please refresh."),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  async function onToggleStatus() {
+    if (!customer) return;
+    const nextActive = !customer.isActive;
+    if (!nextActive && !confirm(`Suspend ${customer.firstName} ${customer.lastName}'s account? They won't be able to log in.`)) {
+      return;
+    }
+    setStatusBusy(true);
+    setStatusError(null);
+    try {
+      await apiFetch(`/customers/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: nextActive }),
+      });
+      await load();
+    } catch (err) {
+      setStatusError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setStatusBusy(false);
+    }
+  }
 
   if (error) {
     return <div className="flex h-screen items-center justify-center text-red-600">{error}</div>;
@@ -71,7 +105,7 @@ export default function CustomerDetailPage() {
                 <p className="text-sm text-teal-700">{customer.email}</p>
               </div>
               <Badge variant={customer.isActive ? "success" : "danger"}>
-                {customer.isActive ? "Active" : "Inactive"}
+                {customer.isActive ? "Active" : "Suspended"}
               </Badge>
             </div>
 
@@ -87,8 +121,16 @@ export default function CustomerDetailPage() {
                 </dd>
               </div>
               <div className="flex justify-between">
+                <dt className="text-teal-700">Address</dt>
+                <dd className="text-teal-900">{customer.address ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between">
                 <dt className="text-teal-700">City</dt>
                 <dd className="text-teal-900">{customer.city ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-teal-700">Postal code</dt>
+                <dd className="text-teal-900">{customer.postalCode ?? "—"}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-teal-700">Joined</dt>
@@ -101,6 +143,23 @@ export default function CustomerDetailPage() {
                 </dd>
               </div>
             </dl>
+
+            {statusError && (
+              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">{statusError}</p>
+            )}
+
+            <div className="mt-5 flex flex-col gap-2 border-t border-teal-50 pt-4">
+              <Button variant="secondary" onClick={() => setShowEdit(true)}>
+                Edit profile
+              </Button>
+              <Button
+                variant={customer.isActive ? "danger" : "primary"}
+                disabled={statusBusy}
+                onClick={onToggleStatus}
+              >
+                {statusBusy ? "..." : customer.isActive ? "Suspend account" : "Reactivate account"}
+              </Button>
+            </div>
           </Card>
 
           <div className="flex flex-col gap-6">
@@ -189,6 +248,114 @@ export default function CustomerDetailPage() {
           </div>
         </div>
       </div>
+
+      <EditCustomerModal
+        open={showEdit}
+        customer={customer}
+        onClose={() => setShowEdit(false)}
+        onSaved={load}
+      />
     </>
+  );
+}
+
+function EditCustomerModal({
+  open,
+  customer,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  customer: CustomerDetail;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [firstName, setFirstName] = useState(customer.firstName);
+  const [lastName, setLastName] = useState(customer.lastName);
+  const [phone, setPhone] = useState(customer.phone ?? "");
+  const [address, setAddress] = useState(customer.address ?? "");
+  const [city, setCity] = useState(customer.city ?? "");
+  const [postalCode, setPostalCode] = useState(customer.postalCode ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setFirstName(customer.firstName);
+    setLastName(customer.lastName);
+    setPhone(customer.phone ?? "");
+    setAddress(customer.address ?? "");
+    setCity(customer.city ?? "");
+    setPostalCode(customer.postalCode ?? "");
+    setError(null);
+  }, [open, customer]);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await apiFetch(`/customers/${customer.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          phone: phone || undefined,
+          address: address || undefined,
+          city: city || undefined,
+          postalCode: postalCode || undefined,
+        }),
+      });
+      onClose();
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Edit customer" description={customer.email}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">First name</span>
+            <input required autoFocus value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Last name</span>
+            <input required value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} />
+          </label>
+        </div>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Phone</span>
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Address</span>
+          <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputClass} />
+        </label>
+        <div className="flex gap-3">
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">City</span>
+            <input value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} />
+          </label>
+          <label className="flex flex-1 flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Postal code</span>
+            <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} className={inputClass} />
+          </label>
+        </div>
+        {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -50,7 +50,11 @@ export function CheckoutModal({
   const [selected, setSelected] = useState<BookingPaymentMethod>(options[0].method);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [booking, setBooking] = useState<{ id: string; priceCharged: string | null } | null>(null);
+  const [booking, setBooking] = useState<{
+    id: string;
+    status: string;
+    priceCharged: string | null;
+  } | null>(null);
 
   const subtotal = selected === "FULL_PRICE" ? price : selected === "MEMBERSHIP" ? memberPrice ?? price : "0.00";
 
@@ -62,7 +66,7 @@ export function CheckoutModal({
     setSubmitting(true);
     setError(null);
     try {
-      const result = await apiFetch<{ id: string; priceCharged: string | null }>(
+      const result = await apiFetch<{ id: string; status: string; priceCharged: string | null }>(
         `/sessions/${sessionId}/bookings`,
         { method: "POST", body: JSON.stringify({ paymentMethod: selected }) },
       );
@@ -115,9 +119,16 @@ export function CheckoutModal({
 
           {booking ? (
             <div className="mt-6 flex flex-col gap-3">
-              <p className="animate-fade-in rounded-md bg-green-50 px-4 py-3 text-sm text-green-700">
-                Booking confirmed! See it in My Bookings.
-              </p>
+              {booking.status === "PENDING" ? (
+                <p className="animate-fade-in rounded-md bg-gold-50 px-4 py-3 text-sm text-gold-900">
+                  Request sent! The coach needs to confirm this appointment — you'll get an email
+                  once they respond. See it in My Bookings.
+                </p>
+              ) : (
+                <p className="animate-fade-in rounded-md bg-green-50 px-4 py-3 text-sm text-green-700">
+                  Booking confirmed! See it in My Bookings.
+                </p>
+              )}
               {needsPayment && (
                 <>
                   <StripePaymentPanel

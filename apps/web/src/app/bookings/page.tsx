@@ -26,6 +26,7 @@ function paymentLabel(b: Booking): string {
 }
 
 const STATUS_VARIANT = {
+  PENDING: "gold",
   CANCELLED: "danger",
   COMPLETED: "success",
   NO_SHOW: "warning",

@@ -67,6 +67,58 @@ export function bookingCancellationEmail(params: {
   };
 }
 
+export function appointmentRequestedEmail(params: {
+  firstName: string;
+  serviceName: string;
+  startTime: Date;
+}) {
+  return {
+    subject: `Request sent: ${params.serviceName}`,
+    html: layout(
+      'Request sent',
+      `<p>Hi ${params.firstName},</p>
+       <p>Your request for <strong>${params.serviceName}</strong> on
+       <strong>${formatWhen(params.startTime)}</strong> has been sent to the coach for
+       confirmation. We'll let you know as soon as they respond.</p>`,
+    ),
+  };
+}
+
+export function newAppointmentRequestForCoachEmail(params: {
+  firstName: string;
+  serviceName: string;
+  startTime: Date;
+  clientName: string;
+}) {
+  return {
+    subject: `New appointment request: ${params.serviceName}`,
+    html: layout(
+      'New appointment request',
+      `<p>Hi ${params.firstName},</p>
+       <p><strong>${params.clientName}</strong> has requested <strong>${params.serviceName}</strong>
+       on <strong>${formatWhen(params.startTime)}</strong>. Please accept or decline it from your
+       schedule.</p>`,
+    ),
+  };
+}
+
+export function bookingDeclinedEmail(params: {
+  firstName: string;
+  serviceName: string;
+  startTime: Date;
+}) {
+  return {
+    subject: `Request declined: ${params.serviceName}`,
+    html: layout(
+      'Request declined',
+      `<p>Hi ${params.firstName},</p>
+       <p>Unfortunately your request for <strong>${params.serviceName}</strong> on
+       <strong>${formatWhen(params.startTime)}</strong> was declined. Please choose another time,
+       or contact the location directly.</p>`,
+    ),
+  };
+}
+
 export function waitlistAvailableEmail(params: {
   firstName: string;
   serviceName: string;
@@ -104,6 +156,27 @@ export function membershipConfirmationEmail(params: { firstName: string; planNam
        <p>Your <strong>${params.planName}</strong> membership is now active.</p>`,
     ),
   };
+}
+
+export function accountStatusChangedEmail(params: { firstName: string; isActive: boolean }) {
+  return params.isActive
+    ? {
+        subject: 'Your account is active again',
+        html: layout(
+          'Welcome back',
+          `<p>Hi ${params.firstName},</p>
+           <p>Your G50.Golf account has been reactivated — you can book again.</p>`,
+        ),
+      }
+    : {
+        subject: 'Your account has been suspended',
+        html: layout(
+          'Account suspended',
+          `<p>Hi ${params.firstName},</p>
+           <p>Your G50.Golf account has been suspended by an administrator. If you think this is
+           a mistake, please contact your local G50.Golf location.</p>`,
+        ),
+      };
 }
 
 export function packageConfirmationEmail(params: {

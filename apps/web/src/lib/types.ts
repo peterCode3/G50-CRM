@@ -40,7 +40,7 @@ export interface SessionWithAvailability {
 export interface Booking {
   id: string;
   sessionId: string;
-  status: "CONFIRMED" | "CANCELLED" | "WAITLISTED" | "COMPLETED" | "NO_SHOW";
+  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "WAITLISTED" | "COMPLETED" | "NO_SHOW";
   priceCharged: string | null;
   userMembershipId: string | null;
   createdAt: string;

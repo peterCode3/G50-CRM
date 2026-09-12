@@ -12,7 +12,7 @@ export interface ReportFilters {
   coachId?: string;
 }
 
-const BOOKING_STATUSES = ['CONFIRMED', 'CANCELLED', 'WAITLISTED', 'COMPLETED', 'NO_SHOW'] as const;
+const BOOKING_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'WAITLISTED', 'COMPLETED', 'NO_SHOW'] as const;
 const ATTENDANCE_STATUSES = ['ATTENDED', 'ABSENT', 'LATE_CANCEL', 'NO_SHOW'] as const;
 // Bookings that were actually paid and kept the money — a cancelled booking's
 // priceCharged is never counted as revenue (nothing was collected for it in
@@ -128,7 +128,12 @@ export class ReportsService {
         type: service.type,
         booked: 0,
       };
-      if (b.status === 'CONFIRMED' || b.status === 'COMPLETED' || b.status === 'NO_SHOW') {
+      if (
+        b.status === 'PENDING' ||
+        b.status === 'CONFIRMED' ||
+        b.status === 'COMPLETED' ||
+        b.status === 'NO_SHOW'
+      ) {
         svcEntry.booked += 1;
       }
       serviceStats.set(service.id, svcEntry);

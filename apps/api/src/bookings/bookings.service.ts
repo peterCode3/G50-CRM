@@ -3,10 +3,18 @@ import { BookingStatus, GlobalRole, LocationRole, Prisma } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreditsService } from '../credits/credits.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import { resolveLocationScope } from '../auth/location-access.util.js';
+import { assertCanManageSession, resolveLocationScope } from '../auth/location-access.util.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { CancelBookingDto } from './dto/cancel-booking.dto.js';
 import type { CreateBookingDto } from './dto/create-booking.dto.js';
+
+// A class is capacity-managed and self-service; an appointment is 1:1 with a
+// specific coach, so it needs their sign-off before it's really "on" — spec
+// discussion with the user: coach should be able to accept/decline a request.
+const REQUIRES_COACH_APPROVAL: readonly string[] = ['APPOINTMENT'];
+// Both of these hold a seat — a PENDING request blocks the slot exactly like
+// a CONFIRMED one so nobody else can grab it while the coach is deciding.
+const SEAT_HOLDING_STATUSES: BookingStatus[] = ['CONFIRMED', 'PENDING'];
 
 export interface BookingAdminFilters {
   locationId?: string;
@@ -40,7 +48,7 @@ export class BookingsService {
   async create(sessionId: string, dto: CreateBookingDto, user: AuthenticatedUser) {
     const session = await this.prisma.client.session.findUnique({
       where: { id: sessionId },
-      include: { service: true },
+      include: { service: true, coach: true },
     });
     if (!session) {
       throw new NotFoundException('Session not found');
@@ -53,23 +61,25 @@ export class BookingsService {
     }
 
     const existing = await this.prisma.client.booking.findFirst({
-      where: { sessionId, userId: user.id, status: 'CONFIRMED' },
+      where: { sessionId, userId: user.id, status: { in: SEAT_HOLDING_STATUSES } },
     });
     if (existing) {
       throw new ConflictException('You already have a booking for this session');
     }
 
     const paymentMethod = dto.paymentMethod ?? 'FULL_PRICE';
+    const needsCoachApproval = REQUIRES_COACH_APPROVAL.includes(session.service.type);
+    const initialStatus: BookingStatus = needsCoachApproval ? 'PENDING' : 'CONFIRMED';
 
     let booking;
     try {
       booking = await this.prisma.client.$transaction(
         async (tx) => {
           if (session.capacity != null) {
-            const confirmedCount = await tx.booking.count({
-              where: { sessionId, status: 'CONFIRMED' },
+            const heldCount = await tx.booking.count({
+              where: { sessionId, status: { in: SEAT_HOLDING_STATUSES } },
             });
-            if (confirmedCount >= session.capacity) {
+            if (heldCount >= session.capacity) {
               throw new ConflictException(
                 'This session is full — join the waitlist instead',
               );
@@ -119,7 +129,7 @@ export class BookingsService {
               sessionId,
               userId: user.id,
               locationId: session.locationId,
-              status: 'CONFIRMED',
+              status: initialStatus,
               priceCharged,
               userMembershipId,
             },
@@ -145,7 +155,19 @@ export class BookingsService {
       throw err;
     }
 
-    void this.notifications.bookingConfirmed(user, session.service.name, session.startTime);
+    if (needsCoachApproval) {
+      void this.notifications.appointmentRequested(user, session.service.name, session.startTime);
+      if (session.coach) {
+        void this.notifications.newAppointmentRequestForCoach(
+          session.coach,
+          session.service.name,
+          session.startTime,
+          `${user.firstName} ${user.lastName}`,
+        );
+      }
+    } else {
+      void this.notifications.bookingConfirmed(user, session.service.name, session.startTime);
+    }
     return booking;
   }
 
@@ -224,6 +246,90 @@ export class BookingsService {
   }
 
   /**
+   * Pending appointment requests this user can act on: their own coached
+   * sessions, plus (for HQ/Location Admin) anything at a location they
+   * manage — the admin "Booking requests" view.
+   */
+  async findPendingForUser(user: AuthenticatedUser) {
+    // HQ sees every pending request network-wide — no session filter at all.
+    // (An empty object as one of several `OR` branches does NOT mean "match
+    // everything" in Prisma; it matches nothing, so HQ's case is handled by
+    // omitting the filter rather than by adding a vacuous OR branch.)
+    let sessionFilter: Prisma.SessionWhereInput | undefined;
+    if (user.globalRole !== GlobalRole.HQ_ADMIN) {
+      const sessionConditions: Prisma.SessionWhereInput[] = [{ coachId: user.id }];
+      const managedLocationIds = user.locations
+        .filter((l) => l.role === LocationRole.LOCATION_ADMIN)
+        .map((l) => l.locationId);
+      if (managedLocationIds.length > 0) {
+        sessionConditions.push({ locationId: { in: managedLocationIds } });
+      }
+      sessionFilter = { OR: sessionConditions };
+    }
+
+    return this.prisma.client.booking.findMany({
+      where: { status: 'PENDING', ...(sessionFilter ? { session: sessionFilter } : {}) },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        location: { select: { id: true, name: true } },
+        session: { include: { service: { select: { id: true, name: true, type: true } } } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * A coach (or the location's admin) accepting a pending appointment
+   * request — flips PENDING -> CONFIRMED and lets the golfer know.
+   */
+  async accept(id: string, user: AuthenticatedUser) {
+    const booking = await this.prisma.client.booking.findUnique({
+      where: { id },
+      include: { user: true, session: { include: { service: true } } },
+    });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+    assertCanManageSession(user, booking.session);
+    if (booking.status !== 'PENDING') {
+      throw new BadRequestException('Only a pending request can be accepted');
+    }
+
+    const confirmed = await this.prisma.client.booking.update({
+      where: { id },
+      data: { status: 'CONFIRMED' },
+    });
+    void this.notifications.bookingConfirmed(
+      booking.user,
+      booking.session.service.name,
+      booking.session.startTime,
+    );
+    return confirmed;
+  }
+
+  /**
+   * A coach (or the location's admin) declining a pending appointment
+   * request — releases the seat (and any spent credit/membership) exactly
+   * like a cancellation, but tells the golfer it was declined rather than
+   * cancelled.
+   */
+  async decline(id: string, dto: CancelBookingDto, user: AuthenticatedUser) {
+    const booking = await this.prisma.client.booking.findUnique({
+      where: { id },
+      include: { session: true },
+    });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+    assertCanManageSession(user, booking.session);
+    if (booking.status !== 'PENDING') {
+      throw new BadRequestException('Only a pending request can be declined');
+    }
+
+    return this.releaseBooking(id, dto.reason ?? 'Declined by coach', true);
+  }
+
+  /**
    * Releases a booking whose payment turned out to have actually failed
    * (Stripe webhook, Phase 6) — same seat-release/credit-refund/waitlist-notify
    * effects as a normal cancellation, but reached without a user in the
@@ -241,7 +347,7 @@ export class BookingsService {
     return this.releaseBooking(id, 'Payment failed');
   }
 
-  private async releaseBooking(id: string, reason?: string) {
+  private async releaseBooking(id: string, reason?: string, declined = false) {
     const { cancelled, booking, nextInLine } = await this.prisma.client.$transaction(async (tx) => {
       const booking = await tx.booking.findUniqueOrThrow({
         where: { id },
@@ -281,11 +387,19 @@ export class BookingsService {
       return { cancelled, booking, nextInLine };
     });
 
-    void this.notifications.bookingCancelled(
-      booking.user,
-      booking.session.service.name,
-      booking.session.startTime,
-    );
+    if (declined) {
+      void this.notifications.bookingDeclined(
+        booking.user,
+        booking.session.service.name,
+        booking.session.startTime,
+      );
+    } else {
+      void this.notifications.bookingCancelled(
+        booking.user,
+        booking.session.service.name,
+        booking.session.startTime,
+      );
+    }
     if (nextInLine) {
       void this.notifications.waitlistAvailable(
         nextInLine.user,

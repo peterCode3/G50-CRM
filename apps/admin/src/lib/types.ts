@@ -61,6 +61,16 @@ export interface StaffMember {
   role: "LOCATION_ADMIN" | "COACH" | "CUSTOMER";
 }
 
+export interface StaffDirectoryEntry {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  isActive: boolean;
+  roles: { locationId: string; locationName: string; role: "LOCATION_ADMIN" | "COACH" }[];
+}
+
 export interface MySession {
   id: string;
   startTime: string;
@@ -124,7 +134,7 @@ export interface ReportOverview {
   range: { from: string; to: string };
   bookings: {
     total: number;
-    byStatus: Record<"CONFIRMED" | "CANCELLED" | "WAITLISTED" | "COMPLETED" | "NO_SHOW", number>;
+    byStatus: Record<"PENDING" | "CONFIRMED" | "CANCELLED" | "WAITLISTED" | "COMPLETED" | "NO_SHOW", number>;
   };
   attendance: {
     total: number;
@@ -153,7 +163,24 @@ export interface ReportOverview {
   memberships: { activeCount: number; expiredOrCancelledCount: number };
 }
 
-export type BookingStatus = "CONFIRMED" | "CANCELLED" | "WAITLISTED" | "COMPLETED" | "NO_SHOW";
+export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "WAITLISTED" | "COMPLETED" | "NO_SHOW";
+
+export interface PendingBooking {
+  id: string;
+  userId: string;
+  sessionId: string;
+  status: "PENDING";
+  priceCharged: string | null;
+  createdAt: string;
+  user: { id: string; firstName: string; lastName: string; email: string };
+  location: { id: string; name: string };
+  session: {
+    id: string;
+    startTime: string;
+    endTime: string;
+    service: { id: string; name: string; type: "CLASS" | "APPOINTMENT" };
+  };
+}
 
 export interface AdminBooking {
   id: string;

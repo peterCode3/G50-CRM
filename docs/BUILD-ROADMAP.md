@@ -848,6 +848,51 @@ actually got built, since implementations may diverge slightly from the prompt).
     Payments page correctly shows an empty state (no Stripe payment has actually succeeded yet in
     this environment, since real keys aren't configured — matches Phase 6's known limitation, not
     a new gap).
+- **Customer account management, staff directory, and coach appointment approval** — driven
+  directly by user feedback against a WellnessLiving reference (`staff-list.html`): the Customers
+  page had no way to edit anyone or change their status, there was no staff/coach directory at
+  all, and a booked appointment went straight to `CONFIRMED` with no way for the coach to actually
+  agree to it. Coach payout/commission tracking was explicitly requested to stay out of scope for
+  this round.
+  - **API**: `PATCH /customers/:id` (HQ/Location Admin) now supports profile edits and an
+    `isActive` toggle, firing a new `accountStatusChanged` email whenever active/suspended flips;
+    `POST /customers` (HQ-only — a brand-new account has no bookings yet, so a Location Admin's
+    booking-based scoping would always reject it) creates one from an admin-entered temporary
+    password. New `StaffService.findAllForAdmin`/`removeRole` back a network-wide (HQ) or
+    location-scoped (Location Admin) staff directory, grouping a user's `UserLocation` rows so
+    someone with roles at several locations appears once with every (location, role) pair
+    attached. `BookingStatus` gained a `PENDING` value (migration
+    `add_booking_pending_status`): booking an `APPOINTMENT`-type session now lands `PENDING`
+    instead of `CONFIRMED` and still holds the seat (`SEAT_HOLDING_STATUSES` now covers both),
+    while a `CLASS` booking is unaffected. New `GET /bookings/pending`, `POST /bookings/:id/accept`,
+    `POST /bookings/:id/decline` let the assigned coach (or that location's admin, or HQ) resolve a
+    request; declining reuses the existing cancellation/seat-release/waitlist-notify path with a
+    distinct "declined" notification instead of "cancelled".
+  - **Caught and fixed a real Prisma bug during curl verification**: `findPendingForUser`
+    originally gave HQ admins visibility by adding an empty `{}` object as one of several `OR`
+    branches on the session filter, intending "no restriction" — but an empty object inside an
+    `OR` array does not mean "match everything" in Prisma, it matches nothing, so HQ admins saw an
+    empty pending-requests list even though pending bookings existed. Fixed by omitting the
+    session filter entirely for HQ instead of adding a vacuous OR branch. Caught by seeing `count:
+    0` from a direct booking that had just been created with `status: PENDING`, not by trusting a
+    200 response.
+  - **`apps/admin`**: the customer detail page gained an "Edit profile" modal and a status
+    button that flips between "Suspend account" / "Reactivate account"; the customers list page
+    gained an "Add customer" button (HQ-only, matching the API's HQ-only creation rule); a new
+    `/staff` "Staff Members" page shows a network-wide or location-scoped card grid (name, email,
+    phone, active status, every location+role assignment with a Remove action) plus an "Add staff"
+    modal reusing the existing staff-creation endpoint; a new `/booking-requests` page (visible to
+    coaches and location admins) lists pending appointment requests with Accept/Decline actions.
+  - **Verified with curl across every RBAC boundary, not just the happy path**: confirmed a
+    freshly created customer's response never contains `passwordHash`; confirmed a coach assigned
+    to one session sees *only* their own pending request (not another coach's), and gets a 403
+    trying to accept a booking on a session they don't own; confirmed HQ sees every pending
+    request network-wide after the fix above. Also verified with real browser screenshots of all
+    three new admin pages (customer edit modal, staff directory grid, booking-requests
+    accept/decline cards).
+  - **Explicitly out of scope, per direct user instruction**: coach payment/payroll/commission
+    tracking ("skip this feature for now"). A broader per-role (Admin/Owner/Coach/Client)
+    frontend UX review was also deferred to a future round.
 
 ---
 

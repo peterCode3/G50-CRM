@@ -14,10 +14,18 @@ const NAV_ITEMS: {
   hqOnly?: boolean;
   coachOnly?: boolean;
   locationAdminOnly?: boolean;
+  coachOrLocationAdminOnly?: boolean;
 }[] = [
   { href: "/dashboard", label: "Dashboard", icon: DashboardIcon },
   { href: "/schedule", label: "My Schedule", icon: ScheduleIcon, coachOnly: true },
+  {
+    href: "/booking-requests",
+    label: "Booking Requests",
+    icon: RequestIcon,
+    coachOrLocationAdminOnly: true,
+  },
   { href: "/locations", label: "Locations", icon: LocationIcon, locationAdminOnly: true },
+  { href: "/staff", label: "Staff Members", icon: StaffIcon, locationAdminOnly: true },
   { href: "/classes", label: "Classes", icon: TemplateIcon, hqOnly: true },
   { href: "/appointments", label: "Appointments", icon: AppointmentIcon, hqOnly: true },
   { href: "/memberships", label: "Memberships", icon: MembershipIcon, hqOnly: true },
@@ -63,7 +71,8 @@ export function Sidebar() {
             (item) =>
               (!item.hqOnly || isHqAdmin) &&
               (!item.coachOnly || isCoach) &&
-              (!item.locationAdminOnly || isLocationAdmin),
+              (!item.locationAdminOnly || isLocationAdmin) &&
+              (!item.coachOrLocationAdminOnly || isCoach || isLocationAdmin),
           ).map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             const Icon = item.icon;
@@ -178,6 +187,26 @@ function BookingIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className}>
       <path d="M5 3h10v14l-5-3-5 3V3Z" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function RequestIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <path d="M4 4h9l3 3v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M7 10.5l2 2 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function StaffIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <circle cx="7" cy="6.5" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="14.5" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2.5 16.5c.7-2.8 2.6-4.3 4.5-4.3s3.8 1.5 4.5 4.3" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M12.5 12.7c1.6.1 3.2 1.3 3.8 3.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }

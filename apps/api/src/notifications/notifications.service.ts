@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { MailService } from './mail.service.js';
 import {
+  accountStatusChangedEmail,
+  appointmentRequestedEmail,
   bookingCancellationEmail,
   bookingConfirmationEmail,
+  bookingDeclinedEmail,
   bookingReminderEmail,
   membershipConfirmationEmail,
+  newAppointmentRequestForCoachEmail,
   packageConfirmationEmail,
   paymentConfirmationEmail,
   waitlistAvailableEmail,
@@ -71,6 +75,44 @@ export class NotificationsService {
       firstName: to.firstName,
       packageName,
       credits,
+    });
+    return this.mail.send(to.email, subject, html);
+  }
+
+  accountStatusChanged(to: Recipient, isActive: boolean) {
+    const { subject, html } = accountStatusChangedEmail({ firstName: to.firstName, isActive });
+    return this.mail.send(to.email, subject, html);
+  }
+
+  appointmentRequested(to: Recipient, serviceName: string, startTime: Date) {
+    const { subject, html } = appointmentRequestedEmail({
+      firstName: to.firstName,
+      serviceName,
+      startTime,
+    });
+    return this.mail.send(to.email, subject, html);
+  }
+
+  newAppointmentRequestForCoach(
+    to: Recipient,
+    serviceName: string,
+    startTime: Date,
+    clientName: string,
+  ) {
+    const { subject, html } = newAppointmentRequestForCoachEmail({
+      firstName: to.firstName,
+      serviceName,
+      startTime,
+      clientName,
+    });
+    return this.mail.send(to.email, subject, html);
+  }
+
+  bookingDeclined(to: Recipient, serviceName: string, startTime: Date) {
+    const { subject, html } = bookingDeclinedEmail({
+      firstName: to.firstName,
+      serviceName,
+      startTime,
     });
     return this.mail.send(to.email, subject, html);
   }

@@ -2,9 +2,16 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 import * as bcrypt from 'bcryptjs';
 import { GlobalRole, LocationRole } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { assertManagesLocation, resolveLocationScope } from '../auth/location-access.util.js';
+import type { AuthenticatedUser } from '../auth/types.js';
 import type { CreateStaffDto } from './dto/create-staff.dto.js';
 
 const SALT_ROUNDS = 12;
+
+export interface StaffAdminFilters {
+  locationId?: string;
+  search?: string;
+}
 
 @Injectable()
 export class StaffService {
@@ -76,5 +83,70 @@ export class StaffService {
       lastName: link.user.lastName,
       role: link.role,
     }));
+  }
+
+  /**
+   * Network-wide (HQ) or location-scoped (Location Admin) staff directory —
+   * the admin "Staff Members" page. A staff member with roles at several
+   * locations appears once, with every (location, role) pair attached —
+   * matches the actual data model (one account, many UserLocation rows).
+   */
+  async findAllForAdmin(filters: StaffAdminFilters, user: AuthenticatedUser) {
+    const locationIds = resolveLocationScope(user, filters.locationId);
+    if (locationIds !== null && locationIds.length === 0) {
+      return [];
+    }
+
+    const search = filters.search?.trim();
+
+    const links = await this.prisma.client.userLocation.findMany({
+      where: {
+        role: { in: [LocationRole.LOCATION_ADMIN, LocationRole.COACH] },
+        ...(locationIds ? { locationId: { in: locationIds } } : {}),
+        ...(search
+          ? {
+              user: {
+                OR: [
+                  { firstName: { contains: search, mode: 'insensitive' } },
+                  { lastName: { contains: search, mode: 'insensitive' } },
+                  { email: { contains: search, mode: 'insensitive' } },
+                ],
+              },
+            }
+          : {}),
+      },
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true, email: true, phone: true, isActive: true },
+        },
+        location: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const byUser = new Map<
+      string,
+      {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        phone: string | null;
+        isActive: boolean;
+        roles: { locationId: string; locationName: string; role: LocationRole }[];
+      }
+    >();
+    for (const link of links) {
+      const entry = byUser.get(link.user.id) ?? { ...link.user, roles: [] };
+      entry.roles.push({ locationId: link.location.id, locationName: link.location.name, role: link.role });
+      byUser.set(link.user.id, entry);
+    }
+    return [...byUser.values()];
+  }
+
+  /** Removes one (location, role) assignment — the account itself isn't deleted. */
+  async removeRole(userId: string, locationId: string, role: LocationRole, user: AuthenticatedUser) {
+    assertManagesLocation(user, locationId);
+    await this.prisma.client.userLocation.deleteMany({ where: { userId, locationId, role } });
   }
 }

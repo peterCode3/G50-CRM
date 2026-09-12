@@ -29,6 +29,12 @@ export class BookingsController {
     return this.bookingsService.findAllForAdmin({ locationId, status, from, to, search }, user);
   }
 
+  @Roles(GlobalRole.HQ_ADMIN, LocationRole.LOCATION_ADMIN, GlobalRole.COACH)
+  @Get('pending')
+  findPendingForUser(@CurrentUser() user: AuthenticatedUser) {
+    return this.bookingsService.findPendingForUser(user);
+  }
+
   // No @Roles() — ownership (or HQ/Location Admin) is checked in the service,
   // since this route has no locationId param for RolesGuard to scope against.
   @Post(':id/cancel')
@@ -38,5 +44,20 @@ export class BookingsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.bookingsService.cancel(id, dto, user);
+  }
+
+  // No @Roles() — assertCanManageSession (coach assigned, or HQ/Location Admin) is checked in the service.
+  @Post(':id/accept')
+  accept(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.bookingsService.accept(id, user);
+  }
+
+  @Post(':id/decline')
+  decline(
+    @Param('id') id: string,
+    @Body() dto: CancelBookingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.decline(id, dto, user);
   }
 }

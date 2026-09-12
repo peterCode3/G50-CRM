@@ -105,7 +105,10 @@ export class SessionsService {
           : {}),
       },
       include: {
-        _count: { select: { bookings: { where: { status: 'CONFIRMED' } } } },
+        // PENDING holds the seat exactly like CONFIRMED does (an appointment
+        // awaiting the coach's decision still blocks the slot) — see
+        // BookingsService.create's SEAT_HOLDING_STATUSES.
+        _count: { select: { bookings: { where: { status: { in: ['CONFIRMED', 'PENDING'] } } } } },
         coach: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: { startTime: 'asc' },

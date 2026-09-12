@@ -12,6 +12,7 @@ import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
 
 const STATUS_VARIANT: Record<BookingStatus, "success" | "danger" | "neutral" | "warning" | "gold"> = {
+  PENDING: "gold",
   CONFIRMED: "success",
   COMPLETED: "success",
   CANCELLED: "danger",
@@ -19,7 +20,7 @@ const STATUS_VARIANT: Record<BookingStatus, "success" | "danger" | "neutral" | "
   WAITLISTED: "neutral",
 };
 
-const STATUSES: BookingStatus[] = ["CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW", "WAITLISTED"];
+const STATUSES: BookingStatus[] = ["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW", "WAITLISTED"];
 
 export default function BookingsPage() {
   const { user, loading: userLoading } = useCurrentUser();

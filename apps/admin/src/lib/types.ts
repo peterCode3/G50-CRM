@@ -152,3 +152,81 @@ export interface ReportOverview {
   }[];
   memberships: { activeCount: number; expiredOrCancelledCount: number };
 }
+
+export type BookingStatus = "CONFIRMED" | "CANCELLED" | "WAITLISTED" | "COMPLETED" | "NO_SHOW";
+
+export interface AdminBooking {
+  id: string;
+  sessionId: string;
+  userId: string;
+  status: BookingStatus;
+  priceCharged: string | null;
+  createdAt: string;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  user: { id: string; firstName: string; lastName: string; email: string };
+  location: { id: string; name: string };
+  session: { startTime: string; endTime: string; service: { id: string; name: string; type: "CLASS" | "APPOINTMENT" } };
+}
+
+export interface CustomerSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  isActive: boolean;
+  createdAt: string;
+  _count: { bookings: number };
+}
+
+export interface CustomerDetail {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  dateOfBirth: string | null;
+  address: string | null;
+  city: string | null;
+  postalCode: string | null;
+  homeLocationId: string | null;
+  gender: string | null;
+  isActive: boolean;
+  createdAt: string;
+  bookings: (Omit<AdminBooking, "user">)[];
+  memberships: {
+    id: string;
+    status: "ACTIVE" | "EXPIRED" | "CANCELLED";
+    startDate: string;
+    endDate: string | null;
+    plan: MembershipPlan;
+  }[];
+  creditBalances: {
+    id: string;
+    creditsRemaining: number;
+    expiresAt: string | null;
+    package: CreditPackage | null;
+  }[];
+}
+
+export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+export type PaymentPurpose = "BOOKING" | "MEMBERSHIP" | "PACKAGE";
+
+export interface AdminPayment {
+  id: string;
+  userId: string;
+  bookingId: string | null;
+  amount: string;
+  currency: string;
+  status: PaymentStatus;
+  purpose: PaymentPurpose;
+  provider: string;
+  providerRef: string | null;
+  createdAt: string;
+  user: { id: string; firstName: string; lastName: string; email: string };
+  booking: {
+    location: { id: string; name: string };
+    session: { service: { name: string } };
+  } | null;
+}

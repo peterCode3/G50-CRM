@@ -6,15 +6,22 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type Stripe from 'stripe';
-import { GlobalRole, PaymentStatus } from '@g50golf/db';
+import { GlobalRole, PaymentPurpose, PaymentStatus } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { assertManagesLocation } from '../auth/location-access.util.js';
+import { assertManagesLocation, resolveLocationScope } from '../auth/location-access.util.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import { BookingsService } from '../bookings/bookings.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { StripeClientService } from './stripe-client.service.js';
 
 const CURRENCY = 'aud';
+
+export interface PaymentAdminFilters {
+  locationId?: string;
+  status?: string;
+  purpose?: string;
+  search?: string;
+}
 
 function toCents(amount: unknown): number {
   return Math.round(Number(amount) * 100);
@@ -158,6 +165,51 @@ export class PaymentsService {
     return this.prisma.client.payment.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Network-wide (HQ) or location-scoped (Location Admin) payment list — the
+   * admin "Payments" page. A Location Admin only ever sees booking-linked
+   * payments at locations they manage — membership/package payments aren't
+   * location-scoped, same restriction the refund() method already enforces.
+   */
+  async findAllForAdmin(filters: PaymentAdminFilters, user: AuthenticatedUser) {
+    const locationIds = resolveLocationScope(user, filters.locationId);
+    if (locationIds !== null && locationIds.length === 0) {
+      return [];
+    }
+
+    const search = filters.search?.trim();
+
+    return this.prisma.client.payment.findMany({
+      where: {
+        ...(locationIds ? { booking: { locationId: { in: locationIds } } } : {}),
+        ...(filters.status ? { status: filters.status as PaymentStatus } : {}),
+        ...(filters.purpose ? { purpose: filters.purpose as PaymentPurpose } : {}),
+        ...(search
+          ? {
+              user: {
+                OR: [
+                  { firstName: { contains: search, mode: 'insensitive' } },
+                  { lastName: { contains: search, mode: 'insensitive' } },
+                  { email: { contains: search, mode: 'insensitive' } },
+                ],
+              },
+            }
+          : {}),
+      },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        booking: {
+          include: {
+            location: { select: { id: true, name: true } },
+            session: { include: { service: { select: { name: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
     });
   }
 

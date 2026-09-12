@@ -36,3 +36,24 @@ export function assertCanManageSession(
   }
   assertManagesLocation(user, session.locationId);
 }
+
+/**
+ * Resolves which locations an admin-list endpoint (Reports, Bookings,
+ * Customers, Payments — anywhere HQ/Location Admin browses network-wide
+ * data) is allowed to see. `null` = no restriction (HQ browsing the whole
+ * network); an array (possibly empty) = exactly those locations. Passing an
+ * explicit `locationId` narrows to just that one, throwing if the caller
+ * doesn't manage it.
+ */
+export function resolveLocationScope(user: AuthenticatedUser, locationId?: string): string[] | null {
+  if (locationId) {
+    assertManagesLocation(user, locationId);
+    return [locationId];
+  }
+  if (user.globalRole === GlobalRole.HQ_ADMIN) {
+    return null;
+  }
+  return user.locations
+    .filter((l) => l.role === LocationRole.LOCATION_ADMIN)
+    .map((l) => l.locationId);
+}

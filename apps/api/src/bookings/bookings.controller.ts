@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { GlobalRole, LocationRole } from '@g50golf/db';
+import { Roles } from '../auth/roles.decorator.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import { BookingsService } from './bookings.service.js';
@@ -11,6 +13,20 @@ export class BookingsController {
   @Get('my')
   findMine(@CurrentUser() user: AuthenticatedUser) {
     return this.bookingsService.findMine(user);
+  }
+
+  // Static path registered before ':id' so it isn't swallowed by the param route.
+  @Roles(GlobalRole.HQ_ADMIN, LocationRole.LOCATION_ADMIN)
+  @Get('admin/all')
+  findAllForAdmin(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('locationId') locationId?: string,
+    @Query('status') status?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.bookingsService.findAllForAdmin({ locationId, status, from, to, search }, user);
   }
 
   // No @Roles() — ownership (or HQ/Location Admin) is checked in the service,

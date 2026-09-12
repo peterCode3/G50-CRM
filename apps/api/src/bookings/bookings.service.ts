@@ -1,11 +1,20 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { GlobalRole, LocationRole, Prisma } from '@g50golf/db';
+import { BookingStatus, GlobalRole, LocationRole, Prisma } from '@g50golf/db';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreditsService } from '../credits/credits.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { resolveLocationScope } from '../auth/location-access.util.js';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { CancelBookingDto } from './dto/cancel-booking.dto.js';
 import type { CreateBookingDto } from './dto/create-booking.dto.js';
+
+export interface BookingAdminFilters {
+  locationId?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  search?: string;
+}
 
 @Injectable()
 export class BookingsService {
@@ -145,6 +154,52 @@ export class BookingsService {
       where: { userId: user.id },
       include: { session: { include: { service: true, location: true } } },
       orderBy: { session: { startTime: 'desc' } },
+    });
+  }
+
+  /**
+   * Network-wide (HQ) or location-scoped (Location Admin) booking list —
+   * the admin "Bookings" page. Same location-scoping convention as Reports.
+   */
+  async findAllForAdmin(filters: BookingAdminFilters, user: AuthenticatedUser) {
+    const locationIds = resolveLocationScope(user, filters.locationId);
+    if (locationIds !== null && locationIds.length === 0) {
+      return [];
+    }
+
+    const search = filters.search?.trim();
+
+    return this.prisma.client.booking.findMany({
+      where: {
+        ...(locationIds ? { locationId: { in: locationIds } } : {}),
+        ...(filters.status ? { status: filters.status as BookingStatus } : {}),
+        ...(filters.from || filters.to
+          ? {
+              createdAt: {
+                ...(filters.from ? { gte: new Date(filters.from) } : {}),
+                ...(filters.to ? { lte: new Date(filters.to) } : {}),
+              },
+            }
+          : {}),
+        ...(search
+          ? {
+              user: {
+                OR: [
+                  { firstName: { contains: search, mode: 'insensitive' } },
+                  { lastName: { contains: search, mode: 'insensitive' } },
+                  { email: { contains: search, mode: 'insensitive' } },
+                ],
+              },
+            }
+          : {}),
+      },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        location: { select: { id: true, name: true } },
+        session: { include: { service: { select: { id: true, name: true, type: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
     });
   }
 

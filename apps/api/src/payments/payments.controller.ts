@@ -5,6 +5,7 @@ import {
   Headers,
   Param,
   Post,
+  Query,
   Req,
   type RawBodyRequest,
 } from '@nestjs/common';
@@ -23,6 +24,19 @@ export class PaymentsController {
   @Get('my')
   findMine(@CurrentUser() user: AuthenticatedUser) {
     return this.paymentsService.findMine(user);
+  }
+
+  // Static path registered before ':id' so it isn't swallowed by the param route.
+  @Roles(GlobalRole.HQ_ADMIN, LocationRole.LOCATION_ADMIN)
+  @Get('admin/all')
+  findAllForAdmin(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('locationId') locationId?: string,
+    @Query('status') status?: string,
+    @Query('purpose') purpose?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.paymentsService.findAllForAdmin({ locationId, status, purpose, search }, user);
   }
 
   @Post('bookings/:bookingId/intent')

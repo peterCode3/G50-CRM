@@ -22,12 +22,9 @@ const NAV_ITEMS: {
   { href: "/appointments", label: "Appointments", icon: AppointmentIcon, hqOnly: true },
   { href: "/memberships", label: "Memberships", icon: MembershipIcon, hqOnly: true },
   { href: "/reports", label: "Reports", icon: ReportIcon, locationAdminOnly: true },
-];
-
-const SOON_ITEMS = [
-  { label: "Bookings", icon: BookingIcon },
-  { label: "Customers", icon: CustomerIcon },
-  { label: "Payments", icon: PaymentIcon },
+  { href: "/bookings", label: "Bookings", icon: BookingIcon, locationAdminOnly: true },
+  { href: "/customers", label: "Customers", icon: CustomerIcon, locationAdminOnly: true },
+  { href: "/payments", label: "Payments", icon: PaymentIcon, locationAdminOnly: true },
 ];
 
 export function Sidebar() {
@@ -83,23 +80,6 @@ export function Sidebar() {
                   <Icon className="h-4 w-4 shrink-0" />
                   {item.label}
                 </Link>
-              </li>
-            );
-          })}
-        </ul>
-
-        <p className="mt-6 px-3 text-xs font-semibold tracking-wider text-teal-50/40 uppercase">
-          Coming soon
-        </p>
-        <ul className="mt-2 flex flex-col gap-1">
-          {SOON_ITEMS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <li key={item.label}>
-                <div className="flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm text-teal-50/35">
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {item.label}
-                </div>
               </li>
             );
           })}

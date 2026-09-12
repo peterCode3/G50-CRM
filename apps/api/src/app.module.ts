@@ -22,6 +22,7 @@ import { ReportsModule } from './reports/reports.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { UploadsModule } from './uploads/uploads.module.js';
+import { CustomersModule } from './customers/customers.module.js';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { UploadsModule } from './uploads/uploads.module.js';
     PaymentsModule,
     NotificationsModule,
     UploadsModule,
+    CustomersModule,
   ],
   controllers: [AppController],
   providers: [

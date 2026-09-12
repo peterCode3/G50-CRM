@@ -813,6 +813,41 @@ actually got built, since implementations may diverge slightly from the prompt).
     service that was already activated before the image existed (each has its own `images` copy
     from the point of activation onward). Also verified with curl: non-image upload → clean 400,
     no auth → 401, a customer account → 403.
+- **Bookings, Customers, and Payments admin pages** — closes the last three "Coming soon"
+  sidebar placeholders. Until now the underlying data (bookings, payments) was only reachable via
+  Reports aggregates or by calling the API directly; there was no way to browse or act on an
+  individual record.
+  - **API**: new shared `resolveLocationScope(user, locationId?)` helper in
+    `auth/location-access.util.ts` (HQ sees the whole network; a Location Admin is auto-restricted
+    to locations they manage; an explicit `locationId` narrows further) — factored out since this
+    exact scoping is now needed in four places (Reports, and these three). `GET /bookings/admin/all`
+    (filters: location, status, date range, customer search), `GET /payments/admin/all` (filters:
+    location, status, purpose, search — a Location Admin only ever sees booking-linked payments at
+    locations they manage, same restriction the existing refund endpoint already enforced), and a
+    new `CustomersModule` — `GET /customers/admin/all` (a Location Admin sees golfers who have
+    booked at a location they manage) and `GET /customers/:id` (full profile + booking history +
+    memberships + credit balances).
+  - **Caught and fixed a real security bug during curl verification, not after**: the customer
+    detail query used Prisma's `include` (which returns every scalar column) instead of an
+    explicit `select`, so the response leaked the golfer's bcrypt `passwordHash` to any HQ/Location
+    Admin viewing that page. Fixed by destructuring it out before returning — this is exactly the
+    kind of bug real curl testing (reading the actual response body, not just checking status
+    codes) exists to catch.
+  - **`apps/admin`**: new `/bookings` (search/location/status filters, a Cancel action reusing the
+    existing cancel endpoint), `/customers` (search/location filters, each row linking to a detail
+    page), `/customers/[id]` (profile card, memberships, credit balances, full booking history),
+    and `/payments`
+    (search/location/status/purpose filters, a Refund action reusing the existing Phase 6 refund
+    endpoint with a confirm prompt). All three moved out of the sidebar's "Coming soon" section
+    into real nav items.
+  - **Verified with real browser click-throughs, not just curl**: confirmed a Cancel click on the
+    Bookings page actually updates the row (button disappears once the booking is no longer
+    `CONFIRMED`); confirmed a Twin Waters Location Admin's Bookings page shows *only* "Twin
+    Waters" across every row, never another location; clicked into a real customer's detail page
+    and confirmed their profile, credit balance, and booking history all rendered correctly.
+    Payments page correctly shows an empty state (no Stripe payment has actually succeeded yet in
+    this environment, since real keys aren't configured — matches Phase 6's known limitation, not
+    a new gap).
 
 ---
 

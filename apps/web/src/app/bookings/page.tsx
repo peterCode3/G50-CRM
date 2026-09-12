@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Booking, WaitlistEntry } from "@/lib/types";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
+import { Spinner } from "@/components/Spinner";
 import { CalendarIcon, PinIcon } from "@/components/icons";
 
 function formatSessionTime(iso: string) {
@@ -40,6 +42,7 @@ export default function BookingsPage() {
   const [waitlist, setWaitlist] = useState<WaitlistEntry[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     load();
@@ -65,6 +68,7 @@ export default function BookingsPage() {
 
   async function onCancel(bookingId: string) {
     setActionError(null);
+    setBusyId(bookingId);
     try {
       await apiFetch(`/bookings/${bookingId}/cancel`, {
         method: "POST",
@@ -73,16 +77,21 @@ export default function BookingsPage() {
       await load();
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setBusyId(null);
     }
   }
 
   async function onClaim(entryId: string) {
     setActionError(null);
+    setBusyId(entryId);
     try {
       await apiFetch(`/waitlist/${entryId}/claim`, { method: "POST" });
       await load();
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -92,30 +101,40 @@ export default function BookingsPage() {
 
   if (bookings === null || waitlist === null) {
     return (
-      <main className="flex flex-1 items-center justify-center text-teal-700">Loading...</main>
+      <main className="flex flex-1 items-center justify-center bg-teal-50/40 text-teal-700">
+        <Spinner className="h-6 w-6" />
+      </main>
     );
   }
 
   const now = new Date();
   const upcoming = bookings
-    .filter((b) => b.status === "CONFIRMED" && new Date(b.session.startTime) >= now)
+    .filter((b) => (b.status === "CONFIRMED" || b.status === "PENDING") && new Date(b.session.startTime) >= now)
     .sort((a, b) => a.session.startTime.localeCompare(b.session.startTime));
   const past = bookings
-    .filter((b) => b.status !== "CONFIRMED" || new Date(b.session.startTime) < now)
+    .filter(
+      (b) => !(b.status === "CONFIRMED" || b.status === "PENDING") || new Date(b.session.startTime) < now,
+    )
     .sort((a, b) => b.session.startTime.localeCompare(a.session.startTime));
 
   return (
     <main className="flex flex-1 flex-col bg-teal-50/40">
-      <section className="border-b border-teal-100 bg-white px-6 py-10">
+      <section className="border-b border-teal-100 bg-gradient-to-br from-teal-900 to-teal-700 px-6 py-12">
         <div className="mx-auto max-w-3xl">
-          <h1 className="text-2xl font-semibold text-teal-900">My Bookings</h1>
-          <p className="mt-1 text-sm text-teal-700">Your upcoming sessions, waitlist spots and history.</p>
+          <h1 className="font-display animate-fade-in-up text-3xl font-semibold text-white">
+            My Bookings
+          </h1>
+          <p className="animate-fade-in-up mt-2 text-teal-100">
+            Your upcoming sessions, waitlist spots and history.
+          </p>
         </div>
       </section>
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-10">
         {actionError && (
-          <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">{actionError}</p>
+          <p className="animate-fade-in rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">
+            {actionError}
+          </p>
         )}
 
         {waitlist.length > 0 && (
@@ -128,7 +147,7 @@ export default function BookingsPage() {
                 <div
                   key={w.id}
                   style={{ animationDelay: `${i * 40}ms` }}
-                  className="animate-fade-in-up flex items-center justify-between rounded-lg border border-teal-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+                  className="animate-fade-in-up flex items-center justify-between rounded-lg border border-teal-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div className="text-sm">
                     <p className="font-medium text-teal-900">{w.session.service.name}</p>
@@ -147,7 +166,9 @@ export default function BookingsPage() {
                     </p>
                   </div>
                   {w.status === "NOTIFIED" && (
-                    <Button onClick={() => onClaim(w.id)}>Claim spot</Button>
+                    <Button disabled={busyId === w.id} onClick={() => onClaim(w.id)}>
+                      {busyId === w.id ? "..." : "Claim spot"}
+                    </Button>
                   )}
                 </div>
               ))}
@@ -160,17 +181,25 @@ export default function BookingsPage() {
             Upcoming
           </h2>
           {upcoming.length === 0 ? (
-            <p className="text-sm text-teal-700">No upcoming bookings.</p>
+            <div className="rounded-xl border border-teal-100 bg-white p-6 text-center text-sm">
+              <p className="text-teal-700">No upcoming bookings yet.</p>
+              <Link href="/" className="mt-2 inline-block font-medium text-teal-900 hover:underline">
+                Browse locations →
+              </Link>
+            </div>
           ) : (
             <div className="flex flex-col gap-2">
               {upcoming.map((b, i) => (
                 <div
                   key={b.id}
                   style={{ animationDelay: `${i * 40}ms` }}
-                  className="animate-fade-in-up flex items-center justify-between rounded-lg border border-teal-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+                  className="animate-fade-in-up flex items-center justify-between rounded-lg border border-teal-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div className="text-sm">
-                    <p className="font-medium text-teal-900">{b.session.service.name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-teal-900">{b.session.service.name}</p>
+                      {b.status === "PENDING" && <Badge variant="gold">Awaiting confirmation</Badge>}
+                    </div>
                     <p className="mt-0.5 flex items-center gap-1.5 text-teal-700">
                       <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
                       {formatSessionTime(b.session.startTime)}
@@ -181,10 +210,11 @@ export default function BookingsPage() {
                   </div>
                   <Button
                     variant="secondary"
+                    disabled={busyId === b.id}
                     className="!border-red-400 !bg-red-50 !text-red-700 hover:!bg-red-100"
                     onClick={() => onCancel(b.id)}
                   >
-                    Cancel
+                    {busyId === b.id ? "..." : b.status === "PENDING" ? "Withdraw" : "Cancel"}
                   </Button>
                 </div>
               ))}

@@ -235,8 +235,10 @@ export class BookingsService {
     }
     this.assertCanManageBooking(booking, user);
 
-    if (booking.status !== 'CONFIRMED') {
-      throw new BadRequestException('Only a confirmed booking can be cancelled');
+    // A still-pending appointment request can also be withdrawn by the
+    // golfer who made it — same release path as a confirmed cancellation.
+    if (booking.status !== 'CONFIRMED' && booking.status !== 'PENDING') {
+      throw new BadRequestException('Only a confirmed or pending booking can be cancelled');
     }
     if (booking.session.startTime <= new Date()) {
       throw new BadRequestException('Cannot cancel a session that has already started');

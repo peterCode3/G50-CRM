@@ -10,6 +10,10 @@ import type {
   CreditBalance,
 } from "@/lib/types";
 import { StripePaymentPanel } from "@/components/StripePaymentPanel";
+import { Button } from "@/components/Button";
+import { Badge } from "@/components/Badge";
+import { Spinner } from "@/components/Spinner";
+import { CheckCircleIcon, CreditCardIcon } from "@/components/icons";
 
 export default function MembershipPage() {
   const router = useRouter();
@@ -22,6 +26,8 @@ export default function MembershipPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [payingMembershipId, setPayingMembershipId] = useState<string | null>(null);
   const [payingBalanceId, setPayingBalanceId] = useState<string | null>(null);
+  const [subscribingId, setSubscribingId] = useState<string | null>(null);
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
 
   useEffect(() => {
     load().catch(() => setError("Couldn't load memberships & packages — please refresh."));
@@ -56,6 +62,7 @@ export default function MembershipPage() {
       router.push("/login");
       return;
     }
+    setSubscribingId(planId);
     try {
       const membership = await apiFetch<UserMembership>(`/membership-plans/${planId}/subscribe`, {
         method: "POST",
@@ -68,6 +75,8 @@ export default function MembershipPage() {
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setSubscribingId(null);
     }
   }
 
@@ -78,6 +87,7 @@ export default function MembershipPage() {
       router.push("/login");
       return;
     }
+    setPurchasingId(packageId);
     try {
       const balance = await apiFetch<CreditBalance>(`/credit-packages/${packageId}/purchase`, {
         method: "POST",
@@ -90,38 +100,50 @@ export default function MembershipPage() {
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
+    } finally {
+      setPurchasingId(null);
     }
   }
 
   const activePlanIds = new Set(
     myMemberships.filter((m) => m.status === "ACTIVE").map((m) => m.planId),
   );
+  const activeBalances = myBalances.filter((b) => b.creditsRemaining > 0);
 
   if (!plans || !packages) {
     return (
       <main className="flex flex-1 items-center justify-center bg-teal-50/40 text-teal-700">
-        Loading...
+        <Spinner className="h-6 w-6" />
       </main>
     );
   }
 
   return (
     <main className="flex flex-1 flex-col bg-teal-50/40">
-      <section className="border-b border-teal-100 bg-white px-6 py-10 text-center">
-        <h1 className="text-2xl font-semibold text-teal-900">Memberships & Packages</h1>
-        <p className="mt-1 text-teal-700">Save on every booking with a plan that suits you.</p>
+      <section className="border-b border-teal-100 bg-gradient-to-br from-teal-900 to-teal-700 px-6 py-12 text-center">
+        <h1 className="font-display animate-fade-in-up text-3xl font-semibold text-white">
+          Memberships &amp; Packages
+        </h1>
+        <p className="animate-fade-in-up mt-2 text-teal-100">
+          Save on every booking with a plan that suits you.
+        </p>
       </section>
 
       <section className="mx-auto w-full max-w-4xl flex-1 px-6 py-10">
         {error && (
-          <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+          <p className="animate-fade-in mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+            {error}
+          </p>
         )}
         {notice && (
-          <p className="mb-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{notice}</p>
+          <p className="animate-fade-in mb-4 flex items-center gap-2 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
+            <CheckCircleIcon className="h-4 w-4 shrink-0" />
+            {notice}
+          </p>
         )}
 
         {payingMembershipId && (
-          <div className="mb-8 rounded-xl border border-teal-100 bg-white p-5">
+          <div className="animate-fade-in-up mb-8 rounded-xl border border-teal-100 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-teal-900">Complete payment</h2>
             <StripePaymentPanel
               intentPath={`/payments/memberships/${payingMembershipId}/intent`}
@@ -135,7 +157,7 @@ export default function MembershipPage() {
         )}
 
         {payingBalanceId && (
-          <div className="mb-8 rounded-xl border border-teal-100 bg-white p-5">
+          <div className="animate-fade-in-up mb-8 rounded-xl border border-teal-100 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-teal-900">Complete payment</h2>
             <StripePaymentPanel
               intentPath={`/payments/credit-balances/${payingBalanceId}/intent`}
@@ -148,39 +170,61 @@ export default function MembershipPage() {
           </div>
         )}
 
-        {myBalances.length > 0 && (
-          <div className="mb-8 rounded-xl border border-teal-100 bg-white p-5">
-            <h2 className="text-sm font-semibold text-teal-900">Your credit balances</h2>
-            <ul className="mt-2 flex flex-col gap-1 text-sm text-teal-700">
-              {myBalances
-                .filter((b) => b.creditsRemaining > 0)
-                .map((b) => (
-                  <li key={b.id}>
-                    {b.creditsRemaining} credit{b.creditsRemaining === 1 ? "" : "s"}
-                    {b.package ? ` — ${b.package.name}` : ""}
-                    {b.expiresAt &&
-                      ` (expires ${new Date(b.expiresAt).toLocaleDateString()})`}
-                  </li>
+        {isLoggedIn && (myMemberships.length > 0 || activeBalances.length > 0) && (
+          <div className="animate-fade-in-up mb-10 rounded-xl border border-teal-100 bg-white p-6 shadow-sm">
+            <h2 className="font-display text-lg font-semibold text-teal-900">Your account</h2>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {myMemberships
+                .filter((m) => m.status === "ACTIVE")
+                .map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between rounded-lg bg-teal-50/60 px-4 py-3 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium text-teal-900">{m.plan.name}</p>
+                      <p className="text-xs text-teal-700">
+                        {m.plan.crossLocationAccess ? "All locations" : "Single location"}
+                      </p>
+                    </div>
+                    <Badge variant="success">Active</Badge>
+                  </div>
                 ))}
-              {myBalances.every((b) => b.creditsRemaining === 0) && (
-                <li className="text-teal-700/70">No credits remaining.</li>
-              )}
-            </ul>
+              {activeBalances.map((b) => (
+                <div
+                  key={b.id}
+                  className="flex items-center justify-between rounded-lg bg-teal-50/60 px-4 py-3 text-sm"
+                >
+                  <div>
+                    <p className="font-medium text-teal-900">{b.package?.name ?? "Credits"}</p>
+                    {b.expiresAt && (
+                      <p className="text-xs text-teal-700">
+                        Expires {new Date(b.expiresAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                  <Badge variant="gold">{b.creditsRemaining} left</Badge>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        <h2 className="mb-3 text-lg font-semibold text-teal-900">Memberships</h2>
+        <h2 className="font-display mb-3 text-lg font-semibold text-teal-900">Memberships</h2>
         <div className="mb-10 grid gap-4 sm:grid-cols-2">
-          {plans.map((plan) => {
+          {plans.map((plan, i) => {
             const isActive = activePlanIds.has(plan.id);
             return (
               <div
                 key={plan.id}
-                className="flex flex-col justify-between rounded-xl border border-teal-100 bg-white p-6 shadow-sm"
+                style={{ animationDelay: `${i * 40}ms` }}
+                className={`animate-fade-in-up flex flex-col justify-between rounded-xl border bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                  isActive ? "border-gold-500 ring-1 ring-gold-500/30" : "border-teal-100"
+                }`}
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-teal-900">{plan.name}</h3>
+                    <h3 className="font-display font-semibold text-teal-900">{plan.name}</h3>
                     <span className="rounded-full bg-gold-100 px-2.5 py-0.5 text-xs font-medium text-gold-900">
                       {plan.type.replace("_", " ")}
                     </span>
@@ -199,13 +243,14 @@ export default function MembershipPage() {
                     {plan.includedCredits ? ` · includes ${plan.includedCredits} credits` : ""}
                   </p>
                 </div>
-                <button
+                <Button
                   onClick={() => onSubscribe(plan.id)}
-                  disabled={isActive}
-                  className="mt-4 rounded-md bg-gold-500 px-4 py-2 text-sm font-medium text-teal-900 transition hover:bg-gold-700 disabled:opacity-50"
+                  disabled={isActive || subscribingId === plan.id}
+                  className="mt-4 flex items-center justify-center gap-2"
                 >
-                  {isActive ? "Active" : "Subscribe"}
-                </button>
+                  {subscribingId === plan.id && <Spinner />}
+                  {isActive ? "Active" : subscribingId === plan.id ? "Subscribing..." : "Subscribe"}
+                </Button>
               </div>
             );
           })}
@@ -214,15 +259,19 @@ export default function MembershipPage() {
           )}
         </div>
 
-        <h2 className="mb-3 text-lg font-semibold text-teal-900">Credit packages</h2>
+        <h2 className="font-display mb-3 text-lg font-semibold text-teal-900">Credit packages</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          {packages.map((pkg) => (
+          {packages.map((pkg, i) => (
             <div
               key={pkg.id}
-              className="flex flex-col justify-between rounded-xl border border-teal-100 bg-white p-6 shadow-sm"
+              style={{ animationDelay: `${i * 40}ms` }}
+              className="animate-fade-in-up flex flex-col justify-between rounded-xl border border-teal-100 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
             >
               <div>
-                <h3 className="font-semibold text-teal-900">{pkg.name}</h3>
+                <div className="flex items-center gap-2">
+                  <CreditCardIcon className="h-4 w-4 text-teal-500" />
+                  <h3 className="font-display font-semibold text-teal-900">{pkg.name}</h3>
+                </div>
                 <p className="mt-2 text-2xl font-semibold text-teal-900">${pkg.price}</p>
                 <p className="mt-1 text-sm text-teal-700">
                   {pkg.creditsIncluded} credit{pkg.creditsIncluded === 1 ? "" : "s"}
@@ -232,12 +281,14 @@ export default function MembershipPage() {
                   {pkg.expiryDays ? ` · expires in ${pkg.expiryDays} days` : ""}
                 </p>
               </div>
-              <button
+              <Button
                 onClick={() => onPurchase(pkg.id)}
-                className="mt-4 rounded-md bg-gold-500 px-4 py-2 text-sm font-medium text-teal-900 transition hover:bg-gold-700"
+                disabled={purchasingId === pkg.id}
+                className="mt-4 flex items-center justify-center gap-2"
               >
-                Purchase
-              </button>
+                {purchasingId === pkg.id && <Spinner />}
+                {purchasingId === pkg.id ? "Purchasing..." : "Purchase"}
+              </Button>
             </div>
           ))}
           {packages.length === 0 && (

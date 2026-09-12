@@ -86,6 +86,46 @@ export function LogoutIcon({ className }: IconProps) {
   );
 }
 
+export function ChevronDownIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <path d="M5 7.5l5 5 5-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function CheckCircleIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M6.5 10.2l2.2 2.2 4.5-4.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function CreditCardIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <rect x="2" y="5" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2 8.5h16" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M5 12.5h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function EditIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <path
+        d="M12.9 3.9l3.2 3.2-8.6 8.6-3.7.5.5-3.7 8.6-8.6Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function CalendarIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className}>

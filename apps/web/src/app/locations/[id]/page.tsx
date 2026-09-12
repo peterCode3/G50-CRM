@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { apiFetch, ApiError, resolveImageUrl, type AuthenticatedUser } from "@/lib/api";
+import { apiFetch, type AuthenticatedUser } from "@/lib/api";
 import type {
   CreditBalance,
   Location,
@@ -12,28 +12,8 @@ import type {
   UserMembership,
 } from "@/lib/types";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
-import { CheckoutModal } from "@/components/CheckoutModal";
-import { BookingModal } from "@/components/BookingModal";
-import { Badge } from "@/components/Badge";
-import { Button } from "@/components/Button";
-import { ClockIcon, FlagIcon, PinIcon, UsersIcon } from "@/components/icons";
-
-function formatDateHeading(date: Date): string {
-  const today = new Date();
-  const isToday = date.toDateString() === today.toDateString();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const isTomorrow = date.toDateString() === tomorrow.toDateString();
-
-  if (isToday) return "Today";
-  if (isTomorrow) return "Tomorrow";
-  return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
-}
-
-interface ScheduleEntry {
-  session: SessionWithAvailability;
-  service: Service;
-}
+import { ServiceBookingCard } from "@/components/ServiceBookingCard";
+import { PinIcon } from "@/components/icons";
 
 function isEligibleMembership(service: Service, myMemberships: UserMembership[]): boolean {
   const now = new Date();
@@ -72,10 +52,7 @@ export default function LocationDetailPage() {
   const [myBalances, setMyBalances] = useState<CreditBalance[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [bookingService, setBookingService] = useState<Service | null>(null);
-  const [checkout, setCheckout] = useState<ScheduleEntry | null>(null);
-  const [rowMessages, setRowMessages] = useState<Record<string, { text: string; isError: boolean }>>({});
-  const [fullSessionIds, setFullSessionIds] = useState<Set<string>>(new Set());
+  const [tab, setTab] = useState<"ALL" | "CLASS" | "APPOINTMENT">("ALL");
 
   useEffect(() => {
     load().catch(() => setError("Couldn't load this location — please refresh."));
@@ -131,10 +108,14 @@ export default function LocationDetailPage() {
     setSessionsByService((prev) => ({ ...prev, [serviceId]: sessions }));
   }
 
-  // Gate any booking/waitlist action behind a completed profile (matches the
-  // "Complete profile information" step in the reference booking flow) — a
-  // golfer who's already complete never sees the modal at all.
-  function requireCompleteProfile(action: () => void) {
+  // Gate any booking/waitlist action behind login, then a completed profile
+  // (matches the "Complete profile information" step in the reference
+  // booking flow) — a golfer who's already complete never sees either gate.
+  function gate(action: () => void) {
+    if (!isLoggedIn) {
+      router.push("/login");
+      return;
+    }
     if (currentUser && !currentUser.profileComplete) {
       setPendingAction(() => action);
     } else {
@@ -142,79 +123,23 @@ export default function LocationDetailPage() {
     }
   }
 
-  function openBookingModal(service: Service) {
-    if (!isLoggedIn) {
-      router.push("/login");
-      return;
-    }
-    requireCompleteProfile(() => setBookingService(service));
-  }
-
-  function openCheckout(entry: ScheduleEntry) {
-    if (!isLoggedIn) {
-      router.push("/login");
-      return;
-    }
-    requireCompleteProfile(() => setCheckout(entry));
-  }
-
-  async function onJoinWaitlist(entry: ScheduleEntry) {
-    if (!isLoggedIn) {
-      router.push("/login");
-      return;
-    }
-    requireCompleteProfile(async () => {
-      try {
-        await apiFetch(`/sessions/${entry.session.id}/waitlist`, { method: "POST" });
-        setRowMessages((prev) => ({
-          ...prev,
-          [entry.session.id]: { text: "Added to the waitlist.", isError: false },
-        }));
-      } catch (err) {
-        setRowMessages((prev) => ({
-          ...prev,
-          [entry.session.id]: {
-            text: err instanceof ApiError ? err.message : "Something went wrong",
-            isError: true,
-          },
-        }));
-      }
-    });
-  }
-
-  const categories = useMemo(() => {
+  const filteredServices = useMemo(() => {
     if (!services) return [];
-    const groups = new Map<string, Service[]>();
-    for (const svc of services) {
-      const key = svc.category || (svc.type === "CLASS" ? "Classes" : "Appointments");
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(svc);
-    }
-    return [...groups.entries()];
-  }, [services]);
-
-  const filteredCategories = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return categories;
-    return categories
-      .map(([name, svcs]) => [name, svcs.filter((s) => s.name.toLowerCase().includes(term))] as const)
-      .filter(([, svcs]) => svcs.length > 0);
-  }, [categories, search]);
+    return services.filter((svc) => {
+      if (tab !== "ALL" && svc.type !== tab) return false;
+      if (term && !svc.name.toLowerCase().includes(term)) return false;
+      return true;
+    });
+  }, [services, search, tab]);
 
-  const scheduleGroups = useMemo(() => {
-    if (!services) return [];
-    const all: ScheduleEntry[] = services.flatMap((svc) =>
-      (sessionsByService[svc.id] ?? []).map((session) => ({ session, service: svc })),
-    );
-    all.sort((a, b) => a.session.startTime.localeCompare(b.session.startTime));
-    const groups = new Map<string, ScheduleEntry[]>();
-    for (const entry of all) {
-      const key = new Date(entry.session.startTime).toDateString();
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(entry);
-    }
-    return [...groups.entries()];
-  }, [services, sessionsByService]);
+  const counts = useMemo(() => {
+    if (!services) return { CLASS: 0, APPOINTMENT: 0 };
+    return {
+      CLASS: services.filter((s) => s.type === "CLASS").length,
+      APPOINTMENT: services.filter((s) => s.type === "APPOINTMENT").length,
+    };
+  }, [services]);
 
   if (error) {
     return <main className="flex flex-1 items-center justify-center text-red-600">{error}</main>;
@@ -226,10 +151,16 @@ export default function LocationDetailPage() {
     );
   }
 
+  const tabs: { key: "ALL" | "CLASS" | "APPOINTMENT"; label: string; count: number }[] = [
+    { key: "ALL", label: "All", count: services.length },
+    { key: "CLASS", label: "Classes", count: counts.CLASS },
+    { key: "APPOINTMENT", label: "Appointments", count: counts.APPOINTMENT },
+  ];
+
   return (
     <main className="flex flex-1 flex-col bg-teal-50/40">
       <section className="border-b border-teal-100 bg-gradient-to-br from-teal-900 to-teal-700 px-6 py-12">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-4xl">
           <Link
             href="/"
             className="text-sm text-teal-100/80 transition hover:text-white hover:underline"
@@ -248,175 +179,57 @@ export default function LocationDetailPage() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[340px_1fr]">
-          {/* Left: searchable service catalog */}
-          <div>
-            <h2 className="text-lg font-semibold text-teal-900">Select a service to book</h2>
-            <p className="mt-1 text-sm text-teal-700">Explore services below.</p>
-            <input
-              type="search"
-              placeholder="Search by service name..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="mt-4 w-full rounded-md border border-teal-300 px-3 py-2 text-sm text-teal-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
-            />
+      <section className="mx-auto w-full max-w-4xl flex-1 px-6 py-10">
+        <h2 className="font-display text-xl font-semibold text-teal-900">
+          Classes &amp; appointments
+        </h2>
+        <p className="mt-1 text-sm text-teal-700">
+          Tap anything below to see upcoming times and book — no popups, just pick a time and go.
+        </p>
 
-            {services.length === 0 && (
-              <p className="mt-4 text-sm text-teal-700">No services available yet.</p>
-            )}
-
-            <div className="mt-5 flex flex-col gap-6">
-              {filteredCategories.map(([category, svcs]) => (
-                <div key={category}>
-                  <p className="mb-2 text-xs font-semibold tracking-wide text-teal-700/70 uppercase">
-                    {category}
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {svcs.map((svc) => (
-                      <button
-                        key={svc.id}
-                        onClick={() => openBookingModal(svc)}
-                        className="flex items-center gap-3 rounded-lg border border-teal-100 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-gold-500 hover:shadow-md"
-                      >
-                        <div
-                          className={`relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br ${
-                            svc.type === "CLASS" ? "from-teal-900 to-teal-700" : "from-gold-700 to-teal-900"
-                          }`}
-                        >
-                          {svc.images.length > 0 ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={resolveImageUrl(svc.images[0])}
-                              alt=""
-                              className="absolute inset-0 h-full w-full object-cover"
-                            />
-                          ) : svc.type === "CLASS" ? (
-                            <FlagIcon className="h-4 w-4 text-white/80" />
-                          ) : (
-                            <ClockIcon className="h-4 w-4 text-white/80" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-teal-900">{svc.name}</p>
-                          <p className="text-xs text-teal-700">
-                            ${svc.price} · {svc.durationMinutes}min
-                          </p>
-                        </div>
-                        <span className="text-teal-400">›</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              {filteredCategories.length === 0 && (
-                <p className="text-sm text-teal-700">No services match your search.</p>
-              )}
-            </div>
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-1 rounded-lg bg-teal-100/60 p-1">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition ${
+                  tab === t.key ? "bg-white text-teal-900 shadow-sm" : "text-teal-700 hover:text-teal-900"
+                }`}
+              >
+                {t.label} <span className="text-teal-500">({t.count})</span>
+              </button>
+            ))}
           </div>
+          <input
+            type="search"
+            placeholder="Search by name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-md border border-teal-300 px-3 py-2 text-sm text-teal-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 sm:w-64"
+          />
+        </div>
 
-          {/* Right: unified schedule across every service */}
-          <div>
-            <h2 className="text-lg font-semibold text-teal-900">Schedule</h2>
-            <p className="mt-1 text-sm text-teal-700">Upcoming classes and appointments, next 30 days.</p>
-
-            <div className="mt-5 flex flex-col gap-6">
-              {scheduleGroups.length === 0 && (
-                <p className="text-sm text-teal-700">No upcoming sessions in the next 30 days.</p>
-              )}
-              {scheduleGroups.map(([dayKey, entries]) => (
-                <div key={dayKey}>
-                  <p className="mb-2 text-xs font-semibold tracking-wide text-teal-700/70 uppercase">
-                    {formatDateHeading(new Date(dayKey))}
-                  </p>
-                  <div className="flex flex-col divide-y divide-teal-50 rounded-xl border border-teal-100 bg-white shadow-sm">
-                    {entries.map((entry) => {
-                      const isFull =
-                        fullSessionIds.has(entry.session.id) ||
-                        (entry.session.spotsLeft != null && entry.session.spotsLeft <= 0);
-                      const message = rowMessages[entry.session.id];
-                      const timeLabel = new Date(entry.session.startTime).toLocaleTimeString(undefined, {
-                        hour: "numeric",
-                        minute: "2-digit",
-                      });
-                      return (
-                        <div key={entry.session.id} className="flex items-center justify-between gap-3 p-4">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-teal-900">{entry.service.name}</p>
-                            <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-teal-700">
-                              <span className="flex items-center gap-1">
-                                <ClockIcon className="h-3 w-3" />
-                                {timeLabel} · {entry.service.durationMinutes} min
-                              </span>
-                              {entry.session.coach && (
-                                <span className="flex items-center gap-1">
-                                  <UsersIcon className="h-3 w-3" />
-                                  {entry.session.coach.firstName}
-                                </span>
-                              )}
-                            </p>
-                            {message && (
-                              <p className={`mt-1 text-xs ${message.isError ? "text-red-600" : "text-green-700"}`}>
-                                {message.text}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            {!isFull && entry.session.spotsLeft != null && entry.session.spotsLeft <= 2 && (
-                              <Badge variant="warning">{entry.session.spotsLeft} left</Badge>
-                            )}
-                            {isFull ? (
-                              <Button variant="secondary" onClick={() => onJoinWaitlist(entry)}>
-                                Join Waitlist
-                              </Button>
-                            ) : (
-                              <Button onClick={() => openCheckout(entry)}>Book now</Button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+        <div className="mt-6 flex flex-col gap-3">
+          {filteredServices.length === 0 && (
+            <p className="rounded-xl border border-teal-100 bg-white p-6 text-center text-sm text-teal-700">
+              {services.length === 0 ? "No services available yet." : "Nothing matches your search."}
+            </p>
+          )}
+          {filteredServices.map((svc, i) => (
+            <div key={svc.id} style={{ animationDelay: `${i * 40}ms` }} className="animate-fade-in-up">
+              <ServiceBookingCard
+                service={svc}
+                sessions={sessionsByService[svc.id] ?? []}
+                hasEligibleMembership={isEligibleMembership(svc, myMemberships)}
+                hasEligibleCredit={isEligibleCredit(svc, myBalances)}
+                onGate={gate}
+                onRefresh={() => refreshSessionsFor(svc.id)}
+              />
             </div>
-          </div>
+          ))}
         </div>
       </section>
-
-      {bookingService && (
-        <BookingModal
-          service={bookingService}
-          sessions={sessionsByService[bookingService.id] ?? []}
-          locationName={location.name}
-          locationAddress={location.address}
-          onClose={() => setBookingService(null)}
-          onSelectSession={(session) => {
-            const service = bookingService;
-            setBookingService(null);
-            setCheckout({ session, service });
-          }}
-        />
-      )}
-
-      {checkout && (
-        <CheckoutModal
-          serviceName={checkout.service.name}
-          locationName={location.name}
-          startTime={checkout.session.startTime}
-          price={checkout.service.price}
-          memberPrice={checkout.service.memberPrice}
-          hasEligibleMembership={isEligibleMembership(checkout.service, myMemberships)}
-          hasEligibleCredit={isEligibleCredit(checkout.service, myBalances)}
-          sessionId={checkout.session.id}
-          onClose={() => setCheckout(null)}
-          onBooked={() => refreshSessionsFor(checkout.service.id)}
-          onCapacityConflict={() => {
-            setFullSessionIds((prev) => new Set(prev).add(checkout.session.id));
-            setCheckout(null);
-          }}
-        />
-      )}
 
       {pendingAction && currentUser && (
         <CompleteProfileModal

@@ -14,7 +14,19 @@ import type {
 } from "@/lib/types";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { ServiceBookingCard } from "@/components/ServiceBookingCard";
+import { SessionBookingRow } from "@/components/SessionBookingRow";
 import { ChevronDownIcon, MailIcon, PinIcon } from "@/components/icons";
+
+function formatDateHeading(date: Date): string {
+  const today = new Date();
+  const isToday = date.toDateString() === today.toDateString();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const isTomorrow = date.toDateString() === tomorrow.toDateString();
+  if (isToday) return "Today";
+  if (isTomorrow) return "Tomorrow";
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+}
 
 const DAY_KEYS: (keyof OpeningHours)[] = [
   "monday",
@@ -92,6 +104,7 @@ export default function LocationDetailPage() {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"ALL" | "CLASS" | "APPOINTMENT">("ALL");
   const [showHours, setShowHours] = useState(false);
+  const [view, setView] = useState<"CARDS" | "SCHEDULE">("CARDS");
 
   useEffect(() => {
     load().catch(() => setError("Couldn't load this location — please refresh."));
@@ -179,6 +192,23 @@ export default function LocationDetailPage() {
       APPOINTMENT: services.filter((s) => s.type === "APPOINTMENT").length,
     };
   }, [services]);
+
+  // Every upcoming session across the filtered services, in one chronological
+  // list grouped by day — a separate way to browse from the per-class cards,
+  // for anyone who'd rather see "what's on this week" than pick a class first.
+  const scheduleGroups = useMemo(() => {
+    const all = filteredServices.flatMap((svc) =>
+      (sessionsByService[svc.id] ?? []).map((session) => ({ session, service: svc })),
+    );
+    all.sort((a, b) => a.session.startTime.localeCompare(b.session.startTime));
+    const map = new Map<string, typeof all>();
+    for (const entry of all) {
+      const key = new Date(entry.session.startTime).toDateString();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(entry);
+    }
+    return [...map.entries()];
+  }, [filteredServices, sessionsByService]);
 
   if (error) {
     return <main className="flex flex-1 items-center justify-center text-red-600">{error}</main>;
@@ -322,26 +352,76 @@ export default function LocationDetailPage() {
           />
         </div>
 
-        <div className="mt-6 flex flex-col gap-3">
-          {filteredServices.length === 0 && (
-            <p className="rounded-xl border border-teal-100 bg-white p-6 text-center text-sm text-teal-700">
-              {services.length === 0 ? "No services available yet." : "Nothing matches your search."}
-            </p>
-          )}
-          {filteredServices.map((svc, i) => (
-            <div key={svc.id} style={{ animationDelay: `${i * 40}ms` }} className="animate-fade-in-up">
-              <ServiceBookingCard
-                service={svc}
-                sessions={sessionsByService[svc.id] ?? []}
-                hasEligibleMembership={isEligibleMembership(svc, myMemberships)}
-                hasEligibleCredit={isEligibleCredit(svc, myBalances)}
-                defaultOpen={svc.type === "CLASS"}
-                onGate={gate}
-                onRefresh={() => refreshSessionsFor(svc.id)}
-              />
-            </div>
-          ))}
+        <div className="mt-4 flex gap-1 rounded-lg border border-teal-100 bg-white p-1 sm:w-fit">
+          <button
+            onClick={() => setView("CARDS")}
+            className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition ${
+              view === "CARDS" ? "bg-teal-900 text-white" : "text-teal-700 hover:bg-teal-50"
+            }`}
+          >
+            By class
+          </button>
+          <button
+            onClick={() => setView("SCHEDULE")}
+            className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition ${
+              view === "SCHEDULE" ? "bg-teal-900 text-white" : "text-teal-700 hover:bg-teal-50"
+            }`}
+          >
+            Full schedule
+          </button>
         </div>
+
+        {view === "CARDS" ? (
+          <div className="mt-6 flex flex-col gap-3">
+            {filteredServices.length === 0 && (
+              <p className="rounded-xl border border-teal-100 bg-white p-6 text-center text-sm text-teal-700">
+                {services.length === 0 ? "No services available yet." : "Nothing matches your search."}
+              </p>
+            )}
+            {filteredServices.map((svc, i) => (
+              <div key={svc.id} style={{ animationDelay: `${i * 40}ms` }} className="animate-fade-in-up">
+                <ServiceBookingCard
+                  service={svc}
+                  sessions={sessionsByService[svc.id] ?? []}
+                  hasEligibleMembership={isEligibleMembership(svc, myMemberships)}
+                  hasEligibleCredit={isEligibleCredit(svc, myBalances)}
+                  defaultOpen={svc.type === "CLASS"}
+                  onGate={gate}
+                  onRefresh={() => refreshSessionsFor(svc.id)}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-6 flex flex-col gap-4">
+            {scheduleGroups.length === 0 && (
+              <p className="rounded-xl border border-teal-100 bg-white p-6 text-center text-sm text-teal-700">
+                No upcoming sessions in the next 30 days.
+              </p>
+            )}
+            {scheduleGroups.map(([dayKey, entries], i) => (
+              <div key={dayKey} style={{ animationDelay: `${i * 40}ms` }} className="animate-fade-in-up">
+                <p className="mb-1.5 text-xs font-semibold tracking-wide text-teal-700/70 uppercase">
+                  {formatDateHeading(new Date(dayKey))}
+                </p>
+                <div className="flex flex-col divide-y divide-teal-50 overflow-hidden rounded-xl border border-teal-100 bg-white shadow-sm">
+                  {entries.map(({ session, service: svc }) => (
+                    <SessionBookingRow
+                      key={session.id}
+                      session={session}
+                      service={svc}
+                      showServiceName
+                      hasEligibleMembership={isEligibleMembership(svc, myMemberships)}
+                      hasEligibleCredit={isEligibleCredit(svc, myBalances)}
+                      onGate={gate}
+                      onRefresh={() => refreshSessionsFor(svc.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {pendingAction && currentUser && (

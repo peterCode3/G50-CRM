@@ -19,6 +19,7 @@ import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Modal } from "@/components/Modal";
 import { ImageGalleryUploader } from "@/components/ImageGalleryUploader";
+import { LogoUploader } from "@/components/LogoUploader";
 import { resolveImageUrl } from "@/lib/upload";
 
 const inputClass =
@@ -609,18 +610,11 @@ function EditLocationModal({
               />
             </label>
           </div>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-teal-900">Logo URL</span>
-            <input
-              placeholder="https://..."
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              className={inputClass}
-            />
-            <span className="text-xs text-teal-700/70">
-              Optional — a hosted URL for a small brand mark, separate from the photo gallery below.
-            </span>
-          </label>
+          <LogoUploader logoUrl={logoUrl} onChange={setLogoUrl} />
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-teal-50 pt-5">
+          <SectionLabel>Photos &amp; about</SectionLabel>
           <ImageGalleryUploader images={images} onChange={setImages} />
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium text-teal-900">Description</span>

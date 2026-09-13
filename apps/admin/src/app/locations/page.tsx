@@ -226,8 +226,13 @@ export default function LocationsPage() {
                   </div>
                 </Link>
                 <div className="relative px-4 pt-8 pb-4">
-                  <div className="absolute -top-6 left-4 flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-gold-100 text-sm font-semibold text-teal-900 shadow-sm">
-                    {initialsFor(loc.name)}
+                  <div className="absolute -top-6 left-4 flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-gold-100 text-sm font-semibold text-teal-900 shadow-sm">
+                    {loc.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={resolveImageUrl(loc.logoUrl)} alt="" className="h-full w-full object-contain p-0.5" />
+                    ) : (
+                      initialsFor(loc.name)
+                    )}
                   </div>
                   <Link href={`/locations/${loc.id}`}>
                     <h3 className="font-semibold text-teal-900 group-hover:underline">{loc.name}</h3>

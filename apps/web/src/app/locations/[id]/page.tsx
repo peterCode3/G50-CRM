@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch, resolveImageUrl, type AuthenticatedUser } from "@/lib/api";
 import type {
@@ -12,6 +12,7 @@ import type {
   SessionWithAvailability,
   UserMembership,
 } from "@/lib/types";
+import { AuthGateModal } from "@/components/AuthGateModal";
 import { CompleteProfileModal } from "@/components/CompleteProfileModal";
 import { ServiceBookingCard } from "@/components/ServiceBookingCard";
 import { SessionBookingRow } from "@/components/SessionBookingRow";
@@ -88,7 +89,6 @@ function isEligibleCredit(service: Service, myBalances: CreditBalance[]): boolea
 
 export default function LocationDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
 
   const [location, setLocation] = useState<Location | null>(null);
   const [services, setServices] = useState<Service[] | null>(null);
@@ -105,6 +105,7 @@ export default function LocationDetailPage() {
   const [tab, setTab] = useState<"ALL" | "CLASS" | "APPOINTMENT">("ALL");
   const [showHours, setShowHours] = useState(false);
   const [view, setView] = useState<"CARDS" | "SCHEDULE">("CARDS");
+  const [showAuthGate, setShowAuthGate] = useState(false);
 
   useEffect(() => {
     load().catch(() => setError("Couldn't load this location — please refresh."));
@@ -161,11 +162,15 @@ export default function LocationDetailPage() {
   }
 
   // Gate any booking/waitlist action behind login, then a completed profile
-  // (matches the "Complete profile information" step in the reference
-  // booking flow) — a golfer who's already complete never sees either gate.
+  // (matches the reference booking flow's own "Sign in to continue" then
+  // "Complete profile information" steps) — a golfer who's already signed
+  // in and complete never sees either gate. Signing in/up happens inline,
+  // right here — never a navigation away that would lose the session the
+  // golfer was about to book.
   function gate(action: () => void) {
     if (!isLoggedIn) {
-      router.push("/login");
+      setPendingAction(() => action);
+      setShowAuthGate(true);
       return;
     }
     if (currentUser && !currentUser.profileComplete) {
@@ -456,7 +461,29 @@ export default function LocationDetailPage() {
         )}
       </section>
 
-      {pendingAction && currentUser && (
+      {showAuthGate && (
+        <AuthGateModal
+          onClose={() => {
+            setShowAuthGate(false);
+            setPendingAction(null);
+          }}
+          onAuthenticated={(user) => {
+            setIsLoggedIn(true);
+            setCurrentUser(user);
+            setShowAuthGate(false);
+            if (user.profileComplete) {
+              const action = pendingAction;
+              setPendingAction(null);
+              action?.();
+            }
+            // Otherwise pendingAction stays set — the CompleteProfileModal
+            // below picks it up on the next render, same as an already
+            // logged-in golfer with an incomplete profile.
+          }}
+        />
+      )}
+
+      {!showAuthGate && pendingAction && currentUser && (
         <CompleteProfileModal
           user={currentUser}
           onClose={() => setPendingAction(null)}

@@ -126,6 +126,17 @@ export function EditIcon({ className }: IconProps) {
   );
 }
 
+export function ShareIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <circle cx="15" cy="5" r="2.2" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="5" cy="10" r="2.2" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="15" cy="15" r="2.2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M6.9 8.8l6.2-2.6M6.9 11.2l6.2 2.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function CalendarIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className}>

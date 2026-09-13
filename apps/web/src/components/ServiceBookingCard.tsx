@@ -24,6 +24,8 @@ export function ServiceBookingCard({
   hasEligibleMembership,
   hasEligibleCredit,
   defaultOpen = false,
+  locationName,
+  locationAddress,
   onGate,
   onRefresh,
 }: {
@@ -32,6 +34,8 @@ export function ServiceBookingCard({
   hasEligibleMembership: boolean;
   hasEligibleCredit: boolean;
   defaultOpen?: boolean;
+  locationName?: string;
+  locationAddress?: string | null;
   /** Runs `action` immediately, or after login/profile-completion, whichever the golfer still needs. */
   onGate: (action: () => void) => void;
   /** Re-fetches this service's sessions (spot counts, etc.) after a booking/waitlist change. */
@@ -157,6 +161,8 @@ export function ServiceBookingCard({
                         service={service}
                         hasEligibleMembership={hasEligibleMembership}
                         hasEligibleCredit={hasEligibleCredit}
+                        locationName={locationName}
+                        locationAddress={locationAddress}
                         onGate={onGate}
                         onRefresh={onRefresh}
                       />

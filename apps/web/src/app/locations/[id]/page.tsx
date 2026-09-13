@@ -193,6 +193,19 @@ export default function LocationDetailPage() {
     };
   }, [services]);
 
+  // Group the catalog by category (e.g. "Ladies", "Fitness") so it reads like
+  // a real studio's service menu rather than a flat list — services with no
+  // category set fall back to their type as a generic bucket.
+  const categoryGroups = useMemo(() => {
+    const map = new Map<string, Service[]>();
+    for (const svc of filteredServices) {
+      const key = svc.category || (svc.type === "CLASS" ? "Classes" : "Appointments");
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(svc);
+    }
+    return [...map.entries()];
+  }, [filteredServices]);
+
   // Every upcoming session across the filtered services, in one chronological
   // list grouped by day — a separate way to browse from the per-class cards,
   // for anyone who'd rather see "what's on this week" than pick a class first.
@@ -372,23 +385,40 @@ export default function LocationDetailPage() {
         </div>
 
         {view === "CARDS" ? (
-          <div className="mt-6 flex flex-col gap-3">
+          <div className="mt-6 flex flex-col gap-6">
             {filteredServices.length === 0 && (
               <p className="rounded-xl border border-teal-100 bg-white p-6 text-center text-sm text-teal-700">
                 {services.length === 0 ? "No services available yet." : "Nothing matches your search."}
               </p>
             )}
-            {filteredServices.map((svc, i) => (
-              <div key={svc.id} style={{ animationDelay: `${i * 40}ms` }} className="animate-fade-in-up">
-                <ServiceBookingCard
-                  service={svc}
-                  sessions={sessionsByService[svc.id] ?? []}
-                  hasEligibleMembership={isEligibleMembership(svc, myMemberships)}
-                  hasEligibleCredit={isEligibleCredit(svc, myBalances)}
-                  defaultOpen={svc.type === "CLASS"}
-                  onGate={gate}
-                  onRefresh={() => refreshSessionsFor(svc.id)}
-                />
+            {categoryGroups.map(([categoryName, svcs], groupIndex) => (
+              <div key={categoryName}>
+                {categoryGroups.length > 1 && (
+                  <h3 className="mb-2 text-xs font-semibold tracking-wide text-teal-700/70 uppercase">
+                    {categoryName}
+                  </h3>
+                )}
+                <div className="flex flex-col gap-3">
+                  {svcs.map((svc, i) => (
+                    <div
+                      key={svc.id}
+                      style={{ animationDelay: `${(groupIndex * svcs.length + i) * 40}ms` }}
+                      className="animate-fade-in-up"
+                    >
+                      <ServiceBookingCard
+                        service={svc}
+                        sessions={sessionsByService[svc.id] ?? []}
+                        hasEligibleMembership={isEligibleMembership(svc, myMemberships)}
+                        hasEligibleCredit={isEligibleCredit(svc, myBalances)}
+                        defaultOpen={svc.type === "CLASS"}
+                        locationName={location.name}
+                        locationAddress={location.address}
+                        onGate={gate}
+                        onRefresh={() => refreshSessionsFor(svc.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -413,6 +443,8 @@ export default function LocationDetailPage() {
                       showServiceName
                       hasEligibleMembership={isEligibleMembership(svc, myMemberships)}
                       hasEligibleCredit={isEligibleCredit(svc, myBalances)}
+                      locationName={location.name}
+                      locationAddress={location.address}
                       onGate={gate}
                       onRefresh={() => refreshSessionsFor(svc.id)}
                     />

@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Service, SessionWithAvailability } from "@/lib/types";
+import { buildIcsDataUrl, directionsUrl } from "@/lib/calendar";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { Spinner } from "./Spinner";
 import { StripePaymentPanel } from "./StripePaymentPanel";
-import { CheckCircleIcon, ClockIcon, UsersIcon } from "./icons";
+import { CalendarIcon, CheckCircleIcon, ClockIcon, PinIcon, ShareIcon, UsersIcon } from "./icons";
 
 type PaymentMethod = "FULL_PRICE" | "MEMBERSHIP" | "CREDIT";
 
@@ -29,6 +30,8 @@ export function SessionBookingRow({
   hasEligibleMembership,
   hasEligibleCredit,
   showServiceName = false,
+  locationName,
+  locationAddress,
   onGate,
   onRefresh,
 }: {
@@ -38,6 +41,9 @@ export function SessionBookingRow({
   hasEligibleCredit: boolean;
   /** Shows the service name inline — used in the combined schedule view where rows mix services. */
   showServiceName?: boolean;
+  /** Used to build the post-booking "Add to calendar" / "Get directions" links. */
+  locationName?: string;
+  locationAddress?: string | null;
   onGate: (action: () => void) => void;
   onRefresh: () => void;
 }) {
@@ -183,6 +189,50 @@ export function SessionBookingRow({
                   onSuccess={resetCheckout}
                 />
               )}
+              <div className="flex flex-wrap gap-1.5">
+                <a
+                  href={buildIcsDataUrl({
+                    title: service.name,
+                    description: locationName ? `${service.name} at ${locationName}` : service.name,
+                    location: locationAddress ?? locationName,
+                    start: new Date(session.startTime),
+                    end: new Date(session.endTime),
+                  })}
+                  download={`${service.name.replace(/[^a-z0-9]+/gi, "-")}.ics`}
+                  className="flex items-center gap-1.5 rounded-md border border-teal-200 bg-white px-2.5 py-1.5 text-xs font-medium text-teal-800 transition hover:border-teal-400 hover:bg-teal-50"
+                >
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  Add to calendar
+                </a>
+                {locationAddress && (
+                  <a
+                    href={directionsUrl(locationAddress)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 rounded-md border border-teal-200 bg-white px-2.5 py-1.5 text-xs font-medium text-teal-800 transition hover:border-teal-400 hover:bg-teal-50"
+                  >
+                    <PinIcon className="h-3.5 w-3.5" />
+                    Get directions
+                  </a>
+                )}
+                {typeof navigator !== "undefined" && !!navigator.share && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigator
+                        .share({
+                          title: service.name,
+                          text: `I'm booked in for ${service.name}${locationName ? ` at ${locationName}` : ""}!`,
+                        })
+                        .catch(() => {})
+                    }
+                    className="flex items-center gap-1.5 rounded-md border border-teal-200 bg-white px-2.5 py-1.5 text-xs font-medium text-teal-800 transition hover:border-teal-400 hover:bg-teal-50"
+                  >
+                    <ShareIcon className="h-3.5 w-3.5" />
+                    Share
+                  </button>
+                )}
+              </div>
               <Button variant="secondary" className="!py-1.5 text-xs" onClick={resetCheckout}>
                 {needsPayment ? "Pay later" : "Done"}
               </Button>

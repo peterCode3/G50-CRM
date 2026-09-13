@@ -38,6 +38,7 @@ export function ServiceTemplatesPage({ type, title, singular }: Props) {
   const [submitting, setSubmitting] = useState(false);
 
   const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
   const [duration, setDuration] = useState("60");
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
@@ -66,6 +67,7 @@ export function ServiceTemplatesPage({ type, title, singular }: Props) {
 
   function resetCreateForm() {
     setName("");
+    setCategory("");
     setDuration("60");
     setCapacity("");
     setPrice("");
@@ -85,6 +87,7 @@ export function ServiceTemplatesPage({ type, title, singular }: Props) {
         body: JSON.stringify({
           name,
           type,
+          category: category || undefined,
           description: description || undefined,
           defaultDurationMinutes: Number(duration),
           defaultCapacity: type === "CLASS" && capacity ? Number(capacity) : undefined,
@@ -173,6 +176,15 @@ export function ServiceTemplatesPage({ type, title, singular }: Props) {
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-teal-900">Category</span>
+            <input
+              placeholder="e.g. Ladies, Juniors, Fitness — groups this with similar services"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
               className={inputClass}
             />
           </label>
@@ -340,6 +352,7 @@ function EditTemplateModal({
   onSaved: () => Promise<void>;
 }) {
   const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("");
   const [capacity, setCapacity] = useState("");
@@ -352,6 +365,7 @@ function EditTemplateModal({
   useEffect(() => {
     if (!template) return;
     setName(template.name);
+    setCategory(template.category ?? "");
     setDescription(template.description ?? "");
     setDuration(String(template.defaultDurationMinutes));
     setCapacity(template.defaultCapacity != null ? String(template.defaultCapacity) : "");
@@ -373,6 +387,7 @@ function EditTemplateModal({
         method: "PATCH",
         body: JSON.stringify({
           name,
+          category: category || undefined,
           description: description || undefined,
           defaultDurationMinutes: Number(duration),
           defaultCapacity: type === "CLASS" && capacity ? Number(capacity) : undefined,
@@ -404,6 +419,15 @@ function EditTemplateModal({
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Category</span>
+          <input
+            placeholder="e.g. Ladies, Juniors, Fitness"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
             className={inputClass}
           />
         </label>

@@ -698,6 +698,7 @@ function EditServiceModal({
   onSaved: () => Promise<void>;
 }) {
   const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
@@ -713,6 +714,7 @@ function EditServiceModal({
   useEffect(() => {
     if (!service) return;
     setName(service.name);
+    setCategory(service.category ?? "");
     setDurationMinutes(String(service.durationMinutes));
     setCapacity(service.capacity != null ? String(service.capacity) : "");
     setPrice(service.price);
@@ -737,6 +739,7 @@ function EditServiceModal({
         method: "PATCH",
         body: JSON.stringify({
           name,
+          category: category || undefined,
           durationMinutes: Number(durationMinutes),
           capacity: capacity ? Number(capacity) : undefined,
           price: Number(price),
@@ -772,6 +775,15 @@ function EditServiceModal({
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-teal-900">Category</span>
+          <input
+            placeholder="e.g. Ladies, Juniors, Fitness"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
             className={inputClass}
           />
         </label>

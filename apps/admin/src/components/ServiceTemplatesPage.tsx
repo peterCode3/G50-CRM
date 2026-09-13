@@ -298,7 +298,14 @@ export function ServiceTemplatesPage({ type, title, singular }: Props) {
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-1">
-                    <h3 className="truncate text-sm font-semibold text-teal-900">{tpl.name}</h3>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-semibold text-teal-900">{tpl.name}</h3>
+                      {tpl.category && (
+                        <Badge variant="gold" className="mt-1 inline-block">
+                          {tpl.category}
+                        </Badge>
+                      )}
+                    </div>
                     <DropdownMenu
                       items={[
                         { label: "Edit", onClick: () => setEditingTemplate(tpl) },

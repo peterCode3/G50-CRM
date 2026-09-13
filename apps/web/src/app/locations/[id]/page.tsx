@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch, resolveImageUrl, type AuthenticatedUser } from "@/lib/api";
+import { groupByTimeOfDay } from "@/lib/calendar";
 import type {
   CreditBalance,
   Location,
@@ -439,21 +440,30 @@ export default function LocationDetailPage() {
                 <p className="mb-1.5 text-xs font-semibold tracking-wide text-teal-700/70 uppercase">
                   {formatDateHeading(new Date(dayKey))}
                 </p>
-                <div className="flex flex-col divide-y divide-teal-50 overflow-hidden rounded-xl border border-teal-100 bg-white shadow-sm">
-                  {entries.map(({ session, service: svc }) => (
-                    <SessionBookingRow
-                      key={session.id}
-                      session={session}
-                      service={svc}
-                      showServiceName
-                      hasEligibleMembership={isEligibleMembership(svc, myMemberships)}
-                      hasEligibleCredit={isEligibleCredit(svc, myBalances)}
-                      locationName={location.name}
-                      locationAddress={location.address}
-                      onGate={gate}
-                      onRefresh={() => refreshSessionsFor(svc.id)}
-                    />
-                  ))}
+                <div className="flex flex-col gap-3">
+                  {groupByTimeOfDay(entries, (e) => new Date(e.session.startTime)).map(
+                    ([period, periodEntries]) => (
+                      <div key={period}>
+                        <p className="mb-1 text-xs font-medium text-teal-700/60">{period}</p>
+                        <div className="flex flex-col divide-y divide-teal-50 overflow-hidden rounded-xl border border-teal-100 bg-white shadow-sm">
+                          {periodEntries.map(({ session, service: svc }) => (
+                            <SessionBookingRow
+                              key={session.id}
+                              session={session}
+                              service={svc}
+                              showServiceName
+                              hasEligibleMembership={isEligibleMembership(svc, myMemberships)}
+                              hasEligibleCredit={isEligibleCredit(svc, myBalances)}
+                              locationName={location.name}
+                              locationAddress={location.address}
+                              onGate={gate}
+                              onRefresh={() => refreshSessionsFor(svc.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             ))}

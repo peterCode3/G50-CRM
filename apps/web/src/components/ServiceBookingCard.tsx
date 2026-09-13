@@ -2,10 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { resolveImageUrl } from "@/lib/api";
+import { groupByTimeOfDay } from "@/lib/calendar";
 import type { Service, SessionWithAvailability } from "@/lib/types";
 import { Badge } from "./Badge";
 import { SessionBookingRow } from "./SessionBookingRow";
 import { ChevronDownIcon, ClockIcon, FlagIcon, UsersIcon } from "./icons";
+
+const DESCRIPTION_TRUNCATE_LENGTH = 160;
 
 function formatDateHeading(date: Date): string {
   const today = new Date();
@@ -43,6 +46,7 @@ export function ServiceBookingCard({
 }) {
   const [expanded, setExpanded] = useState(defaultOpen);
   const [staffId, setStaffId] = useState("any");
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   const staffOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -121,7 +125,22 @@ export function ServiceBookingCard({
       {expanded && (
         <div className="animate-fade-in-up border-t border-teal-50 px-4 pb-5">
           {service.description && (
-            <p className="pt-4 text-sm text-teal-700">{service.description}</p>
+            <div className="pt-4 text-sm text-teal-700">
+              <p>
+                {!descriptionExpanded && service.description.length > DESCRIPTION_TRUNCATE_LENGTH
+                  ? `${service.description.slice(0, DESCRIPTION_TRUNCATE_LENGTH).trimEnd()}…`
+                  : service.description}
+              </p>
+              {service.description.length > DESCRIPTION_TRUNCATE_LENGTH && (
+                <button
+                  type="button"
+                  onClick={() => setDescriptionExpanded((v) => !v)}
+                  className="mt-1 text-xs font-medium text-teal-900 hover:underline"
+                >
+                  {descriptionExpanded ? "Show less" : "Show more"}
+                </button>
+              )}
+            </div>
           )}
 
           {staffOptions.length > 1 && (
@@ -153,20 +172,29 @@ export function ServiceBookingCard({
                   <p className="mb-1.5 text-xs font-semibold tracking-wide text-teal-700/70 uppercase">
                     {formatDateHeading(new Date(dayKey))}
                   </p>
-                  <div className="flex flex-col divide-y divide-teal-50 overflow-hidden rounded-lg border border-teal-100">
-                    {daySessions.map((session) => (
-                      <SessionBookingRow
-                        key={session.id}
-                        session={session}
-                        service={service}
-                        hasEligibleMembership={hasEligibleMembership}
-                        hasEligibleCredit={hasEligibleCredit}
-                        locationName={locationName}
-                        locationAddress={locationAddress}
-                        onGate={onGate}
-                        onRefresh={onRefresh}
-                      />
-                    ))}
+                  <div className="flex flex-col gap-3">
+                    {groupByTimeOfDay(daySessions, (s) => new Date(s.startTime)).map(
+                      ([period, periodSessions]) => (
+                        <div key={period}>
+                          <p className="mb-1 text-xs font-medium text-teal-700/60">{period}</p>
+                          <div className="flex flex-col divide-y divide-teal-50 overflow-hidden rounded-lg border border-teal-100">
+                            {periodSessions.map((session) => (
+                              <SessionBookingRow
+                                key={session.id}
+                                session={session}
+                                service={service}
+                                hasEligibleMembership={hasEligibleMembership}
+                                hasEligibleCredit={hasEligibleCredit}
+                                locationName={locationName}
+                                locationAddress={locationAddress}
+                                onGate={onGate}
+                                onRefresh={onRefresh}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ),
+                    )}
                   </div>
                 </div>
               ))}

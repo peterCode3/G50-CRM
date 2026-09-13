@@ -22,11 +22,15 @@ export class LocationsService {
     return this.prisma.client.location.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
+      include: { _count: { select: { services: { where: { isActive: true } } } } },
     });
   }
 
   findAll() {
-    return this.prisma.client.location.findMany({ orderBy: { name: 'asc' } });
+    return this.prisma.client.location.findMany({
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { services: { where: { isActive: true } } } } },
+    });
   }
 
   async findOne(id: string) {

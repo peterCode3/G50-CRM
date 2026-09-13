@@ -8,7 +8,7 @@ import type { Booking, SessionWithAvailability, WaitlistEntry } from "@/lib/type
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Spinner } from "@/components/Spinner";
-import { CalendarIcon, ChevronDownIcon, PinIcon } from "@/components/icons";
+import { CalendarIcon, ChevronDownIcon, ClockIcon, FlagIcon, PinIcon } from "@/components/icons";
 
 function formatSessionTime(iso: string) {
   const d = new Date(iso);
@@ -25,6 +25,22 @@ function paymentLabel(b: Booking): string {
   if (b.userMembershipId) return "Paid via membership";
   if (b.priceCharged === "0") return "Paid with 1 credit";
   return b.priceCharged ? `$${b.priceCharged}` : "";
+}
+
+function ServiceIcon({ type }: { type: "CLASS" | "APPOINTMENT" }) {
+  return (
+    <div
+      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${
+        type === "CLASS" ? "from-teal-900 to-teal-700" : "from-gold-700 to-teal-900"
+      }`}
+    >
+      {type === "CLASS" ? (
+        <FlagIcon className="h-4 w-4 text-white/80" />
+      ) : (
+        <ClockIcon className="h-4 w-4 text-white/80" />
+      )}
+    </div>
+  );
 }
 
 const STATUS_VARIANT = {
@@ -121,7 +137,7 @@ export default function BookingsPage() {
   return (
     <main className="flex flex-1 flex-col bg-teal-50/40">
       <section className="border-b border-teal-100 bg-gradient-to-br from-teal-900 to-teal-700 px-6 py-12">
-        <div className="mx-auto max-w-3xl">
+        <div className="mx-auto max-w-4xl">
           <h1 className="font-display animate-fade-in-up text-3xl font-semibold text-white">
             My Bookings
           </h1>
@@ -131,7 +147,28 @@ export default function BookingsPage() {
         </div>
       </section>
 
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-10">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="animate-fade-in-up rounded-xl border border-teal-100 bg-white p-4 text-center shadow-sm">
+            <p className="text-2xl font-semibold text-teal-900">{upcoming.length}</p>
+            <p className="mt-0.5 text-xs text-teal-700">Upcoming</p>
+          </div>
+          <div
+            className="animate-fade-in-up rounded-xl border border-teal-100 bg-white p-4 text-center shadow-sm"
+            style={{ animationDelay: "40ms" }}
+          >
+            <p className="text-2xl font-semibold text-teal-900">{waitlist.length}</p>
+            <p className="mt-0.5 text-xs text-teal-700">Waitlisted</p>
+          </div>
+          <div
+            className="animate-fade-in-up rounded-xl border border-teal-100 bg-white p-4 text-center shadow-sm"
+            style={{ animationDelay: "80ms" }}
+          >
+            <p className="text-2xl font-semibold text-teal-900">{past.length}</p>
+            <p className="mt-0.5 text-xs text-teal-700">History</p>
+          </div>
+        </div>
+
         {actionError && (
           <p className="animate-fade-in rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">
             {actionError}
@@ -148,23 +185,26 @@ export default function BookingsPage() {
                 <div
                   key={w.id}
                   style={{ animationDelay: `${i * 40}ms` }}
-                  className="animate-fade-in-up flex items-center justify-between rounded-lg border border-teal-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="animate-fade-in-up flex flex-col gap-3 rounded-lg border border-teal-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="text-sm">
-                    <p className="font-medium text-teal-900">{w.session.service.name}</p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-teal-700">
-                      <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-                      {formatSessionTime(w.session.startTime)}
-                      <PinIcon className="ml-1 h-3.5 w-3.5 shrink-0" />
-                      {w.session.location.name}
-                    </p>
-                    <p className="mt-1.5">
-                      {w.status === "NOTIFIED" ? (
-                        <Badge variant="success">A spot is open for you!</Badge>
-                      ) : (
-                        <Badge variant="neutral">Waiting — position {w.position}</Badge>
-                      )}
-                    </p>
+                  <div className="flex items-center gap-3 text-sm">
+                    <ServiceIcon type={w.session.service.type} />
+                    <div>
+                      <p className="font-medium text-teal-900">{w.session.service.name}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-teal-700">
+                        <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                        {formatSessionTime(w.session.startTime)}
+                        <PinIcon className="ml-1 h-3.5 w-3.5 shrink-0" />
+                        {w.session.location.name}
+                      </p>
+                      <p className="mt-1.5">
+                        {w.status === "NOTIFIED" ? (
+                          <Badge variant="success">A spot is open for you!</Badge>
+                        ) : (
+                          <Badge variant="neutral">Waiting — position {w.position}</Badge>
+                        )}
+                      </p>
+                    </div>
                   </div>
                   {w.status === "NOTIFIED" && (
                     <Button disabled={busyId === w.id} onClick={() => onClaim(w.id)}>
@@ -196,19 +236,22 @@ export default function BookingsPage() {
                   style={{ animationDelay: `${i * 40}ms` }}
                   className="animate-fade-in-up overflow-hidden rounded-lg border border-teal-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <div className="flex items-center justify-between p-4">
-                    <div className="text-sm">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium text-teal-900">{b.session.service.name}</p>
-                        {b.status === "PENDING" && <Badge variant="gold">Awaiting confirmation</Badge>}
+                  <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3 text-sm">
+                      <ServiceIcon type={b.session.service.type} />
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-teal-900">{b.session.service.name}</p>
+                          {b.status === "PENDING" && <Badge variant="gold">Awaiting confirmation</Badge>}
+                        </div>
+                        <p className="mt-0.5 flex items-center gap-1.5 text-teal-700">
+                          <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                          {formatSessionTime(b.session.startTime)}
+                          <PinIcon className="ml-1 h-3.5 w-3.5 shrink-0" />
+                          {b.session.location.name}
+                        </p>
+                        <p className="mt-1 text-xs text-teal-700/70">{paymentLabel(b)}</p>
                       </div>
-                      <p className="mt-0.5 flex items-center gap-1.5 text-teal-700">
-                        <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-                        {formatSessionTime(b.session.startTime)}
-                        <PinIcon className="ml-1 h-3.5 w-3.5 shrink-0" />
-                        {b.session.location.name}
-                      </p>
-                      <p className="mt-1 text-xs text-teal-700/70">{paymentLabel(b)}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Button
@@ -258,16 +301,19 @@ export default function BookingsPage() {
               {past.map((b) => (
                 <div
                   key={b.id}
-                  className="flex items-center justify-between rounded-lg border border-teal-50 bg-white/60 p-4 text-sm"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-teal-50 bg-white/60 p-4 text-sm"
                 >
-                  <div>
-                    <p className="font-medium text-teal-900">{b.session.service.name}</p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-teal-700">
-                      <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-                      {formatSessionTime(b.session.startTime)}
-                      <PinIcon className="ml-1 h-3.5 w-3.5 shrink-0" />
-                      {b.session.location.name}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <ServiceIcon type={b.session.service.type} />
+                    <div>
+                      <p className="font-medium text-teal-900">{b.session.service.name}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-teal-700">
+                        <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                        {formatSessionTime(b.session.startTime)}
+                        <PinIcon className="ml-1 h-3.5 w-3.5 shrink-0" />
+                        {b.session.location.name}
+                      </p>
+                    </div>
                   </div>
                   <Badge variant={STATUS_VARIANT[b.status]}>{b.status.replace("_", " ")}</Badge>
                 </div>

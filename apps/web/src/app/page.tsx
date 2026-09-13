@@ -44,17 +44,17 @@ export default function HomePage() {
         </p>
       </section>
 
-      <section className="mx-auto w-full max-w-5xl flex-1 px-6 py-14">
+      <section className="mx-auto w-full max-w-6xl flex-1 px-6 py-14">
         {error && (
           <p className="rounded-md bg-red-50 px-4 py-3 text-center text-sm text-red-600">{error}</p>
         )}
 
         {!error && locations === null && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[0, 1, 2, 3].map((i) => (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
-                className="h-[164px] animate-pulse rounded-xl border border-teal-100 bg-white"
+                className="h-[268px] animate-pulse rounded-xl border border-teal-100 bg-white"
               />
             ))}
           </div>
@@ -64,7 +64,7 @@ export default function HomePage() {
           <p className="text-center text-sm text-teal-700">No locations available yet.</p>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {locations?.map((loc, i) => (
             <LocationCard key={loc.id} location={loc} index={i} />
           ))}

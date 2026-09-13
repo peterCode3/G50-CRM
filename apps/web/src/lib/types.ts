@@ -21,6 +21,7 @@ export interface Location {
   images: string[];
   openingHours: OpeningHours | null;
   isActive: boolean;
+  _count?: { services: number };
 }
 
 export interface Service {
